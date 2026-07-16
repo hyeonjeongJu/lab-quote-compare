@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     if (!(await isVendorActive(vendor)))                                       // 개발자가 활성한 업체만 업로드 허용
       return res.status(422).json({ error: `'${vendor}'는 견적 업로드 지원 업체가 아니에요 (파서 미검증)` });
 
-    const parsed = await parseQuote(name, buffer);
+    const parsed = await parseQuote(name, buffer, vendor);
     if (!parsed.items.length) return res.status(422).json({ error: "견적 품목을 못 찾음 (형식 확인)", parsed });
 
     // 선택 업체 ↔ 파일 속 업체명 일치 검증 (공백·법인격 무시, 파일에서 업체명 못 읽으면 통과)
