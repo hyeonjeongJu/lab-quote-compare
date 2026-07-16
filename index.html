@@ -37,6 +37,10 @@
   .crown{color:var(--best);}
   .expired{color:var(--warn);font-size:11px;}
   .muted{color:var(--sub);font-size:13px;font-family:var(--mono);}
+  .toolbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0 2px 12px;min-height:22px;}
+  .chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);cursor:pointer;user-select:none;}
+  .chk input{cursor:pointer;}
+  .count{color:var(--sub);font-size:12px;font-family:var(--mono);margin-right:auto;}
 </style>
 </head>
 <body>
@@ -52,6 +56,10 @@
     <div class="status" id="status"></div>
   </div>
 
+  <div class="toolbar">
+    <span class="count" id="count"></span>
+    <label class="chk"><input type="checkbox" id="hideExpired"> 만료된 견적 숨기기</label>
+  </div>
   <div id="out"><p class="muted">불러오는 중…</p></div>
 </div>
 
@@ -83,14 +91,29 @@
     } finally { $("#go").disabled = false; }
   };
 
+  const isExpired = r => r.expiration_date && r.expiration_date.slice(0, 10) < today;
+  let cache = [];   // 마지막으로 불러온 전체 rows (필터는 화면단에서)
+
   async function loadComparison() {
     const r = await fetch("/api/comparison");
     const { rows, error } = await r.json();
-    const out = $("#out");
-    if (error) { out.innerHTML = `<p class="muted">오류: ${error}</p>`; return; }
-    if (!rows?.length) { out.innerHTML = `<p class="muted">아직 데이터 없음 — 견적서를 올려보세요.</p>`; return; }
+    if (error) { $("#out").innerHTML = `<p class="muted">오류: ${error}</p>`; return; }
+    cache = rows || [];
+    render();
+  }
 
-    // 코드별 그룹
+  $("#hideExpired").onchange = render;
+
+  function render() {
+    const out = $("#out");
+    const hideExp = $("#hideExpired").checked;
+    const rows = hideExp ? cache.filter(r => !isExpired(r)) : cache;
+    const hidden = cache.length - rows.length;
+    $("#count").textContent = cache.length ? (hideExp && hidden ? `만료 ${hidden}건 숨김` : "") : "";
+    if (!cache.length) { out.innerHTML = `<p class="muted">아직 데이터 없음 — 견적서를 올려보세요.</p>`; return; }
+    if (!rows.length) { out.innerHTML = `<p class="muted">표시할 견적이 없어요 (전부 만료). 체크 해제하면 보여요.</p>`; return; }
+
+    // 코드별 그룹 (필터된 rows 기준 → 🏆도 남은 것들로 재계산)
     const groups = {};
     for (const row of rows) (groups[row.code] ||= { code: row.code, name: row.name, spec: row.spec, unit: row.spec_unit, rows: [] }).rows.push(row);
 
