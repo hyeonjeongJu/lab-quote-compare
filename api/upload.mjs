@@ -20,6 +20,14 @@ export default async function handler(req, res) {
 
     const parsed = await parseQuote(name, buffer);
     if (!parsed.items.length) return res.status(422).json({ error: "견적 품목을 못 찾음 (형식 확인)", parsed });
+
+    // 선택 업체 ↔ 파일 속 업체명 일치 검증 (공백·법인격 무시, 파일에서 업체명 못 읽으면 통과)
+    const norm = s => String(s || "").replace(/\s+/g, "").replace(/주식회사|㈜|\(주\)/g, "");
+    const kw = norm(vendor.replace(/\(.*?\)/g, ""));   // "비티비(동인)"→"비티비"
+    const pv = norm(parsed.vendor);
+    if (pv && kw && !pv.includes(kw))
+      return res.status(422).json({ error: `선택한 업체 '${vendor}'와 파일 속 업체명('${parsed.vendor}')이 안 맞아요. 업체를 다시 확인하세요.` });
+
     parsed.vendor = vendor;                                                    // 파싱값 대신 선택값으로 확정(드리프트 차단)
     const saved = await saveQuote(parsed);
     res.status(200).json({ ok: true, vendor: parsed.vendor, items: parsed.items.length, ...saved });

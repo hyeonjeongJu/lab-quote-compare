@@ -110,6 +110,7 @@
   /* 업체 관리 */
   .vadd{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:14px;padding:10px;border:1px dashed var(--line);border-radius:10px;}
   .vadd input{flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink);font-size:13px;min-width:0;}
+  .vadd button{padding:6px 14px;font-size:13px;margin-left:auto;}
   .vrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:14px;}
   .vrow .tag{font-size:11px;color:var(--sub);border:1px solid var(--line);border-radius:99px;padding:1px 8px;margin-left:8px;}
   #vaddBtn{background:var(--near-black);color:var(--near-white);}
@@ -213,10 +214,11 @@
   // 업로드 다이얼로그 — 업체 라디오(활성만 선택가능) + 파일
   const upDlg = $("#upDlg");
   $("#pick").onclick = () => {
-    const defv = (vendorsList.find(v => v.active && v.name === "비티비(동인)") || vendorsList.find(v => v.active) || {}).name;
-    $("#upVendors").innerHTML = vendorsList.length
-      ? vendorsList.map(v => `<label class="${v.active ? "" : "off"}"><input type="radio" name="upv" value="${attr(v.name)}" ${v.active ? "" : "disabled"} ${v.name === defv ? "checked" : ""}> ${v.name}</label>`).join("")
-      : `<span class="muted">업체 관리 탭에서 업체를 먼저 추가하세요.</span>`;
+    const act = vendorsList.filter(v => v.active);            // 활성(업로드 지원) 업체만 노출
+    const defv = (act.find(v => v.name === "비티비(동인)") || act[0] || {}).name;
+    $("#upVendors").innerHTML = act.length
+      ? act.map(v => `<label><input type="radio" name="upv" value="${attr(v.name)}" ${v.name === defv ? "checked" : ""}> ${v.name}</label>`).join("")
+      : `<span class="muted">업로드 지원 업체가 없어요.</span>`;
     $("#upFile").value = "";
     upDlg.showModal();
   };
