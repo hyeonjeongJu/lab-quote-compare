@@ -1,4 +1,4 @@
-import { getVendors, addVendor, setVendorActive } from "../lib/db.mjs";
+import { getVendors, addVendor, deleteVendor } from "../lib/db.mjs";
 
 export const config = { api: { bodyParser: false } };
 
@@ -10,18 +10,19 @@ const readJson = async req => {
 export default async function handler(req, res) {
   try {
     if (req.method === "GET") return res.status(200).json({ vendors: await getVendors() });
-    if (req.method === "POST") {                    // 업체 추가
+    if (req.method === "POST") {                    // 업체 추가 (수동구매 전용, 비활성)
       const b = await readJson(req);
       if (!b.name?.trim()) return res.status(422).json({ error: "업체명 필요" });
-      return res.status(200).json(await addVendor(b.name, b.active !== false));
+      return res.status(200).json(await addVendor(b.name));
     }
-    if (req.method === "PATCH") {                    // 활성 토글
-      const b = await readJson(req);
-      if (!b.id) return res.status(422).json({ error: "id 필요" });
-      await setVendorActive(b.id, !!b.active);
-      return res.status(200).json({ ok: true });
+    if (req.method === "DELETE") {                   // 업체 삭제 (기본 등록은 불가)
+      const id = new URL(req.url, "http://x").searchParams.get("id");
+      if (!id) return res.status(422).json({ error: "id 필요" });
+      const r = await deleteVendor(id);
+      if (!r.deleted) return res.status(422).json({ error: "기본 등록 업체는 삭제할 수 없어요" });
+      return res.status(200).json(r);
     }
-    res.status(405).json({ error: "GET/POST/PATCH only" });
+    res.status(405).json({ error: "GET/POST/DELETE only" });
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }

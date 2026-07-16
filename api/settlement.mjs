@@ -1,4 +1,4 @@
-import { createSettlement, getSettlementPurchases } from "../lib/db.mjs";
+import { createSettlement, getSettlementPurchases, deleteSettlement } from "../lib/db.mjs";
 
 export const config = { api: { bodyParser: false } };
 
@@ -19,7 +19,13 @@ export default async function handler(req, res) {
       if (!id) return res.status(422).json({ error: "id 필요" });
       return res.status(200).json({ rows: await getSettlementPurchases(id) });
     }
-    res.status(405).json({ error: "GET/POST only" });
+    if (req.method === "DELETE") {                   // 정산서 삭제 (딸린 구매 CASCADE)
+      const id = new URL(req.url, "http://x").searchParams.get("id");
+      if (!id) return res.status(422).json({ error: "id 필요" });
+      await deleteSettlement(id);
+      return res.status(200).json({ ok: true });
+    }
+    res.status(405).json({ error: "GET/POST/DELETE only" });
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }

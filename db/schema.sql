@@ -2,14 +2,18 @@
 CREATE TABLE IF NOT EXISTS vendor (
   id         SERIAL PRIMARY KEY,
   name       TEXT UNIQUE NOT NULL,
-  active     BOOLEAN NOT NULL DEFAULT true,   -- 견적 업로드 라디오 활성(파서 검증됨). 수동입력은 활성무관 전체 사용
+  active     BOOLEAN NOT NULL DEFAULT true,    -- 견적 업로드 라디오 노출(파서 검증됨). 수동입력은 활성무관 전체 사용
+  builtin    BOOLEAN NOT NULL DEFAULT false,   -- 기본 등록 업체 = 삭제 불가
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-INSERT INTO vendor (name, active) VALUES
-  ('팜텍', true), ('비티비(동인)', true),
-  ('삼보', false), ('에스비', false), ('코어젠', false), ('경동가스', false), ('지성문구', false)
+ALTER TABLE vendor ADD COLUMN IF NOT EXISTS builtin BOOLEAN NOT NULL DEFAULT false;   -- 기존 DB 보강
+INSERT INTO vendor (name, active, builtin) VALUES
+  ('팜텍', true, true), ('비티비(동인)', true, true),
+  ('삼보', false, true), ('에스비', false, true), ('코어젠', false, true), ('경동가스', false, true), ('지성문구', false, true)
 ON CONFLICT (name) DO NOTHING;
+UPDATE vendor SET builtin = true
+  WHERE name IN ('팜텍','비티비(동인)','삼보','에스비','코어젠','경동가스','지성문구') AND builtin = false;
 
 -- 상품 카탈로그 (유지)
 CREATE TABLE IF NOT EXISTS product (

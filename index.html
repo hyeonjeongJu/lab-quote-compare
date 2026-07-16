@@ -81,6 +81,9 @@
   th.srt{cursor:pointer;user-select:none;white-space:nowrap;}
   th.srt:hover{color:var(--ink);}
   select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;max-width:60vw;}
+  .manual-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px;padding:10px;border:1px dashed var(--line);border-radius:10px;}
+  .manual-add input,.manual-add select{padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink);font-size:13px;min-width:0;}
+  .manual-add button{padding:6px 14px;font-size:13px;margin-left:auto;}
   .settle-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 2px;}
   #settleBtn{background:var(--near-black);color:var(--near-white);}
   #settleBtn:hover{filter:none;opacity:.88;}
@@ -107,6 +110,12 @@
   .vadd input{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:14px;}
   .vrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:14px;}
   .vrow .tag{font-size:11px;color:var(--sub);border:1px solid var(--line);border-radius:99px;padding:1px 8px;margin-left:8px;}
+  #vaddBtn{background:var(--near-black);color:var(--near-white);}
+  #vaddBtn:hover{filter:none;opacity:.88;}
+  @media (prefers-color-scheme: dark){ #vaddBtn{background:var(--near-white);color:var(--near-black);} }
+  .help{font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 2px 14px;}
+  .vdel{color:var(--warn);}
+  #delSetBtn{color:var(--warn);}
 </style>
 </head>
 <body>
@@ -293,11 +302,14 @@
     renderVendors();
   }
   function renderVendors() {
-    const rows = vendorsList.map(v => `<div class="vrow"><span>${v.name}</span></div>`).join("");
+    const rows = vendorsList.map(v => `<div class="vrow">
+        <span>${v.name}${v.builtin ? "" : ` <span class="tag">추가됨</span>`}</span>
+        ${v.builtin ? "" : `<button class="ghost vdel" data-vdel="${v.id}" title="삭제">✕</button>`}
+      </div>`).join("");
     $("#vout").innerHTML = `
+      <p class="help">여기서 추가하신 업체만 구매내역의 <b>수동 구매 입력</b>에서 선택하실 수 있어요.<br>견적 업로드 지원 업체는 기본으로 등록되어 있으며, 삭제할 수 없습니다.</p>
       <div class="vadd"><input id="vname" placeholder="새 업체명 입력" maxlength="40"><button id="vaddBtn">추가</button></div>
-      ${rows || `<p class="muted">업체가 없어요.</p>`}
-      <p class="muted" style="margin-top:12px">· 수동 구매 입력 시 여기 업체들을 셀렉트로 고르게 돼요. (견적 업로드 지원 업체는 개발자가 설정)</p>`;
+      ${rows || `<p class="muted">업체가 없어요.</p>`}`;
     $("#vaddBtn").onclick = addVendorUI;
     $("#vname").onkeydown = e => { if (e.key === "Enter") addVendorUI(); };
   }
@@ -306,6 +318,13 @@
     await fetch("/api/vendors", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
     await loadVendors();
   }
+  $("#vout").addEventListener("click", async e => {   // 업체 삭제(기본 등록 제외)
+    const d = e.target.closest("[data-vdel]"); if (!d) return;
+    if (!confirm("이 업체를 삭제할까요?\n이미 기록된 구매·견적의 업체명은 그대로 유지돼요.")) return;
+    const r = await fetch("/api/vendors?id=" + d.dataset.vdel, { method: "DELETE" });
+    if (!r.ok) { alert((await r.json()).error || "삭제 실패"); return; }
+    await loadVendors();
+  });
 
   // ── 구매/정산 ──
   const TARGET = 3000000;                    // 정산 목표액(300만원)
@@ -381,6 +400,16 @@
     const tableBlock = all.length ? `<div class="tw"><table><colgroup>${cols}</colgroup>${th}<tbody>${body}</tbody></table></div>`
       : `<p class="muted">${isOpen ? "현재 사이클에 구매내역이 없어요. 견적 비교 탭에서 [구매]를 눌러 담아보세요." : "이 정산에 구매내역이 없어요."}</p>`;
     const settleBtn = isOpen && all.length ? `<button id="settleBtn">📄 정산서 생성 (${won(pdata.open.total)})</button>` : "";
+    const vopts = vendorsList.map(v => `<option value="${attr(v.name)}"${v.name === "비티비(동인)" ? " selected" : ""}>${v.name}</option>`).join("");
+    const manualRow = isOpen ? `<div class="manual-add">
+        <input id="mCode" placeholder="상품코드" style="flex:1 1 100px">
+        <input id="mName" placeholder="품명" style="flex:1 1 100px">
+        <select id="mVendor">${vopts}</select>
+        <input id="mPrice" type="number" min="0" placeholder="단가" style="width:88px">
+        <input id="mQty" type="number" min="1" value="1" placeholder="수량" style="width:60px">
+        <input id="mDate" type="date" value="${today}">
+        <button id="mAdd">추가</button>
+      </div>` : "";
     const vendorSel = vendors.length > 1
       ? `<select id="vendorFilter"><option value="">전체 업체</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select>` : "";
 
@@ -391,8 +420,10 @@
         <select id="setSel" style="margin-left:auto">${opts}</select>
         <button class="ghost" id="csvBtn">⬇ CSV 내려받기</button>
       </div>
+      ${manualRow}
       ${tableBlock}
-      ${settleBtn ? `<div class="settle-row"><span></span>${settleBtn}</div>` : ""}`;
+      ${settleBtn ? `<div class="settle-row"><span></span>${settleBtn}</div>` : ""}
+      ${!isOpen ? `<div class="settle-row"><span></span><button id="delSetBtn" class="ghost">🗑 이 정산서 삭제</button></div>` : ""}`;
 
     $("#setSel").value = viewSel;
     $("#setSel").onchange = async e => { viewSel = e.target.value; await renderPurchases(); };
@@ -409,6 +440,27 @@
       csvDownload(view, label);        // 화면에 보이는(필터·정렬된) 그대로 내보냄
     };
     const sb = $("#settleBtn"); if (sb) sb.onclick = doSettle;
+    const ma = $("#mAdd"); if (ma) ma.onclick = addManual;
+    const ds = $("#delSetBtn"); if (ds) ds.onclick = delSettlement;
+  }
+
+  async function delSettlement() {
+    if (!confirm("이 정산서를 삭제할까요?\n딸린 구매 기록도 함께 삭제되고 되돌릴 수 없어요.")) return;
+    const r = await fetch("/api/settlement?id=" + viewSel, { method: "DELETE" });
+    if (!r.ok) { alert("삭제 실패"); return; }
+    viewSel = "open";
+    await loadPurchases();
+  }
+
+  // 수동 구매 추가 (표 위 인라인 한 줄) — 전 필드 필수
+  async function addManual() {
+    const body = { code: $("#mCode").value.trim(), name: $("#mName").value.trim(), vendor: $("#mVendor").value,
+      unitPrice: Number($("#mPrice").value), qty: Number($("#mQty").value), purchasedAt: $("#mDate").value };
+    if (!body.code || !body.name || !body.vendor || !body.unitPrice || !body.qty || !body.purchasedAt) {
+      $("#status").textContent = "모든 값을 입력하세요 (상품코드·품명·업체·단가·수량·구매일)."; return;
+    }
+    await fetch("/api/purchases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    await loadPurchases();
   }
 
   // 구매 버튼(비교표) → 다이얼로그
