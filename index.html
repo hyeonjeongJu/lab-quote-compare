@@ -77,6 +77,10 @@
   @media (prefers-color-scheme: dark){ button.buy{background:var(--near-white);color:var(--near-black);} }
   td.act{text-align:center;}
   /* 구매내역 */
+  .toolbar{flex-wrap:wrap;}
+  th.srt{cursor:pointer;user-select:none;white-space:nowrap;}
+  th.srt:hover{color:var(--ink);}
+  select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;max-width:60vw;}
   .settle-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 2px;}
   #settleBtn{background:var(--near-black);color:var(--near-white);}
   #settleBtn:hover{filter:none;opacity:.88;}
@@ -211,10 +215,11 @@
       // 최저 단위가(없으면 최저 총액)로 best 판정
       const hasUnit = g.rows.some(r => r.unit_price != null);
       const key = r => hasUnit ? (r.unit_price != null ? Number(r.unit_price) : Infinity) : Number(r.price);
-      const best = Math.min(...g.rows.map(key));
+      const live = g.rows.filter(r => !isExpired(r));            // 만료 안 된 견적만 최저가 후보
+      const best = live.length ? Math.min(...live.map(key)) : null;
       const body = g.rows.map(r => {
-        const isBest = key(r) === best;
-        const exp = r.expiration_date && r.expiration_date.slice(0,10) < today;
+        const exp = isExpired(r);
+        const isBest = best != null && !exp && key(r) === best;
         return `<tr class="${isBest ? "best" : ""}${exp ? " cut" : ""}">
           <td class="ell" data-full="${attr(r.vendor)}">${isBest ? '<span class="crown">🏆</span> ' : ""}${r.vendor || "?"}</td>
           <td class="muted ell" data-full="${attr(r.manufacturer)}">${r.manufacturer || ""}</td>
@@ -247,6 +252,7 @@
   let pdata = { open: { rows: [], total: 0 }, settlements: [] };
   let viewSel = "open";                      // 구매내역 탭에서 보는 정산 (open=미정산 사이클)
   const setCache = {};                       // 지난 정산 구매 상세 캐시
+  let sortKey = "purchased_at", sortDir = "desc", vendorFilter = "";   // 구매내역 정렬/필터 상태
 
   async function loadPurchases() {
     const r = await fetch("/api/purchases");
@@ -273,18 +279,26 @@
   }
 
   async function renderPurchases() {
-    // 드롭다운 옵션: 현재(미정산) + 지난 정산들
     if (!pdata.settlements.some(s => String(s.id) === String(viewSel))) viewSel = "open";   // 선택 유효성
     const opts = [`<option value="open">현재 (미정산) · ${won(pdata.open.total)}</option>`]
       .concat(pdata.settlements.map(s =>
         `<option value="${s.id}">${(s.settled_at||"").slice(0,10)} · ${won(s.total_amount)}${s.memo ? " · " + s.memo : ""}</option>`)).join("");
 
     const isOpen = viewSel === "open";
-    const rows = isOpen ? pdata.open.rows : await fetchSettlement(viewSel);
+    const all = isOpen ? pdata.open.rows : await fetchSettlement(viewSel);
     const amt = r => Number(r.amount ?? r.unit_price * r.qty);
-    const total = rows.reduce((a, r) => a + amt(r), 0);
 
-    const body = rows.map(r => `<tr>
+    // 업체 필터
+    const vendors = [...new Set(all.map(r => r.vendor).filter(Boolean))].sort();
+    if (vendorFilter && !vendors.includes(vendorFilter)) vendorFilter = "";
+    let view = vendorFilter ? all.filter(r => r.vendor === vendorFilter) : all.slice();
+    // 정렬 (헤더 클릭: 단가/수량/금액/구매일)
+    const val = { unit_price: r => Number(r.unit_price), qty: r => Number(r.qty), amount: amt, purchased_at: r => (r.purchased_at || "") };
+    view.sort((a, b) => { const x = val[sortKey](a), y = val[sortKey](b); const c = x < y ? -1 : x > y ? 1 : 0; return sortDir === "asc" ? c : -c; });
+    const total = view.reduce((s, r) => s + amt(r), 0);
+    const arr = k => sortKey === k ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+
+    const body = view.map(r => `<tr>
       <td class="ell" data-full="${attr(r.code + " " + (r.name || ""))}"><b>${r.code}</b> ${r.name || ""}</td>
       <td class="ell" data-full="${attr(r.vendor)}">${r.vendor || ""}</td>
       <td class="num">${won(r.unit_price)}</td>
@@ -294,19 +308,26 @@
       ${isOpen ? `<td class="act"><button class="ghost" data-del="${r.id}" title="삭제">✕</button></td>` : ""}
     </tr>`).join("");
     const cols = isOpen
-      ? `<col style="width:30%"><col style="width:20%"><col style="width:13%"><col style="width:8%"><col style="width:14%"><col style="width:11%"><col style="width:6%">`
-      : `<col style="width:32%"><col style="width:22%"><col style="width:13%"><col style="width:9%"><col style="width:14%"><col style="width:10%">`;
-    const tableBlock = rows.length ? `<div class="tw"><table>
-      <colgroup>${cols}</colgroup>
-      <thead><tr><th>상품</th><th>업체</th><th style="text-align:right">단가</th><th style="text-align:right">수량</th><th style="text-align:right">금액</th><th>구매일</th>${isOpen ? "<th></th>" : ""}</tr></thead>
-      <tbody>${body}</tbody></table></div>`
+      ? `<col style="width:28%"><col style="width:19%"><col style="width:13%"><col style="width:9%"><col style="width:14%"><col style="width:11%"><col style="width:6%">`
+      : `<col style="width:30%"><col style="width:21%"><col style="width:14%"><col style="width:10%"><col style="width:15%"><col style="width:10%">`;
+    const th = `<thead><tr>
+        <th>상품</th><th>업체</th>
+        <th class="srt" data-k="unit_price" style="text-align:right">단가${arr("unit_price")}</th>
+        <th class="srt" data-k="qty" style="text-align:right">수량${arr("qty")}</th>
+        <th class="srt" data-k="amount" style="text-align:right">금액${arr("amount")}</th>
+        <th class="srt" data-k="purchased_at">구매일${arr("purchased_at")}</th>
+        ${isOpen ? "<th></th>" : ""}</tr></thead>`;
+    const tableBlock = all.length ? `<div class="tw"><table><colgroup>${cols}</colgroup>${th}<tbody>${body}</tbody></table></div>`
       : `<p class="muted">${isOpen ? "현재 사이클에 구매내역이 없어요. 견적 비교 탭에서 [구매]를 눌러 담아보세요." : "이 정산에 구매내역이 없어요."}</p>`;
-    const settleBtn = isOpen && rows.length ? `<button id="settleBtn">📄 정산서 생성 (${won(total)})</button>` : "";
+    const settleBtn = isOpen && all.length ? `<button id="settleBtn">📄 정산서 생성 (${won(pdata.open.total)})</button>` : "";
+    const vendorSel = vendors.length > 1
+      ? `<select id="vendorFilter"><option value="">전체 업체</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select>` : "";
 
     $("#pout").innerHTML = `
       <div class="toolbar">
-        <span class="count">${rows.length}건 · 합계 <b>${won(total)}</b></span>
-        <select id="setSel">${opts}</select>
+        <span class="count">${view.length}건 · 합계 <b>${won(total)}</b></span>
+        ${vendorSel}
+        <select id="setSel" style="margin-left:auto">${opts}</select>
         <button class="ghost" id="csvBtn">⬇ CSV 내려받기</button>
       </div>
       ${tableBlock}
@@ -314,10 +335,17 @@
 
     $("#setSel").value = viewSel;
     $("#setSel").onchange = async e => { viewSel = e.target.value; await renderPurchases(); };
+    const vf = $("#vendorFilter"); if (vf) { vf.value = vendorFilter; vf.onchange = e => { vendorFilter = e.target.value; renderPurchases(); }; }
+    $("#pout").querySelectorAll("th.srt").forEach(el => el.onclick = () => {
+      const k = el.dataset.k;
+      if (sortKey === k) sortDir = sortDir === "asc" ? "desc" : "asc";
+      else { sortKey = k; sortDir = k === "purchased_at" ? "desc" : "asc"; }
+      renderPurchases();
+    });
     $("#csvBtn").onclick = () => {
       const label = isOpen ? "현재_" + today
         : "정산_" + ((pdata.settlements.find(s => String(s.id) === String(viewSel)) || {}).settled_at || "").slice(0,10);
-      csvDownload(rows, label);
+      csvDownload(view, label);        // 화면에 보이는(필터·정렬된) 그대로 내보냄
     };
     const sb = $("#settleBtn"); if (sb) sb.onclick = doSettle;
   }
