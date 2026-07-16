@@ -2,3 +2,7 @@ node_modules/
 .vercel
 .DS_Store
 _*.mjs
+.env*
+.agents/
+.claude/
+skills-lock.json
