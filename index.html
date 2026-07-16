@@ -24,7 +24,7 @@
   button{padding:9px 16px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:filter .12s;}
   button:hover{filter:brightness(1.07);}
   button:disabled{opacity:.5;cursor:default;filter:none;}
-  #pick{display:inline-flex;flex-direction:column;align-items:center;gap:3px;padding:10px 22px;font-size:15px;background:var(--near-black);color:var(--near-white);}
+  #pick{display:inline-flex;flex-direction:column;align-items:center;gap:3px;padding:10px 22px;font-size:15px;background:var(--near-black);color:var(--near-white);margin-left:auto;}
   #pick:hover{filter:none;opacity:.88;}
   #pick .hint{font-weight:400;font-size:11px;opacity:.75;}
   @media (prefers-color-scheme: dark){ #pick{background:var(--near-white);color:var(--near-black);} }
@@ -199,8 +199,9 @@
   // 업로드 다이얼로그 — 업체 라디오(활성만 선택가능) + 파일
   const upDlg = $("#upDlg");
   $("#pick").onclick = () => {
+    const defv = (vendorsList.find(v => v.active && v.name === "비티비(동인)") || vendorsList.find(v => v.active) || {}).name;
     $("#upVendors").innerHTML = vendorsList.length
-      ? vendorsList.map(v => `<label class="${v.active ? "" : "off"}"><input type="radio" name="upv" value="${attr(v.name)}" ${v.active ? "" : "disabled"}> ${v.name}</label>`).join("")
+      ? vendorsList.map(v => `<label class="${v.active ? "" : "off"}"><input type="radio" name="upv" value="${attr(v.name)}" ${v.active ? "" : "disabled"} ${v.name === defv ? "checked" : ""}> ${v.name}</label>`).join("")
       : `<span class="muted">업체 관리 탭에서 업체를 먼저 추가하세요.</span>`;
     $("#upFile").value = "";
     upDlg.showModal();
@@ -292,14 +293,11 @@
     renderVendors();
   }
   function renderVendors() {
-    const rows = vendorsList.map(v => `<div class="vrow">
-        <span>${v.name}${v.active ? "" : `<span class="tag">업로드 비활성</span>`}</span>
-        <label class="chk"><input type="checkbox" data-vtoggle="${v.id}" ${v.active ? "checked" : ""}> 업로드 가능</label>
-      </div>`).join("");
+    const rows = vendorsList.map(v => `<div class="vrow"><span>${v.name}</span></div>`).join("");
     $("#vout").innerHTML = `
       <div class="vadd"><input id="vname" placeholder="새 업체명 입력" maxlength="40"><button id="vaddBtn">추가</button></div>
       ${rows || `<p class="muted">업체가 없어요.</p>`}
-      <p class="muted" style="margin-top:12px">· '업로드 가능'을 끄면 견적 업로드 라디오에서만 숨겨져요 (수동 구매엔 계속 사용).</p>`;
+      <p class="muted" style="margin-top:12px">· 수동 구매 입력 시 여기 업체들을 셀렉트로 고르게 돼요. (견적 업로드 지원 업체는 개발자가 설정)</p>`;
     $("#vaddBtn").onclick = addVendorUI;
     $("#vname").onkeydown = e => { if (e.key === "Enter") addVendorUI(); };
   }
@@ -308,11 +306,6 @@
     await fetch("/api/vendors", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
     await loadVendors();
   }
-  $("#vout").addEventListener("change", async e => {
-    const t = e.target.closest("[data-vtoggle]"); if (!t) return;
-    await fetch("/api/vendors", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: Number(t.dataset.vtoggle), active: t.checked }) });
-    await loadVendors();
-  });
 
   // ── 구매/정산 ──
   const TARGET = 3000000;                    // 정산 목표액(300만원)

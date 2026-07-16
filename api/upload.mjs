@@ -1,5 +1,5 @@
 import { parseQuote } from "../lib/parsers.mjs";
-import { saveQuote } from "../lib/db.mjs";
+import { saveQuote, isVendorActive } from "../lib/db.mjs";
 
 // 프론트가 파일 원본을 raw body로 POST, 파일명은 ?name= 쿼리로 전달 (multipart 파싱 회피)
 export const config = { api: { bodyParser: false } };
@@ -14,9 +14,13 @@ export default async function handler(req, res) {
     const name = decodeURIComponent(url.searchParams.get("name") || "upload");
     const vendor = decodeURIComponent(url.searchParams.get("vendor") || "");   // 라디오로 고른 업체(통제 목록)
 
+    if (!vendor) return res.status(422).json({ error: "업체를 선택하세요" });
+    if (!(await isVendorActive(vendor)))                                       // 개발자가 활성한 업체만 업로드 허용
+      return res.status(422).json({ error: `'${vendor}'는 견적 업로드 지원 업체가 아니에요 (파서 미검증)` });
+
     const parsed = await parseQuote(name, buffer);
     if (!parsed.items.length) return res.status(422).json({ error: "견적 품목을 못 찾음 (형식 확인)", parsed });
-    if (vendor) parsed.vendor = vendor;                                        // 파싱값 대신 선택값으로 확정(드리프트 차단)
+    parsed.vendor = vendor;                                                    // 파싱값 대신 선택값으로 확정(드리프트 차단)
     const saved = await saveQuote(parsed);
     res.status(200).json({ ok: true, vendor: parsed.vendor, items: parsed.items.length, ...saved });
   } catch (e) {
