@@ -65,13 +65,12 @@
   @media (prefers-color-scheme: dark){ .tab.active{border-bottom-color:var(--near-white);} }
   /* 누적 진행 배너 */
   .progress{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:16px;background:var(--card);}
-  .progress .lbl{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:8px;}
-  .progress .lbl b{font-family:var(--mono);}
-  .bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;}
-  .bar>span{display:block;height:100%;background:var(--best);border-radius:99px;transition:width .3s;}
-  .progress.near{border-color:var(--warn);}
-  .progress.near .bar>span{background:var(--warn);}
-  .hintline{font-size:12px;color:var(--warn);font-weight:600;margin-top:8px;}
+  .plabel{font-size:13px;margin-bottom:10px;}
+  .badges{display:flex;flex-wrap:wrap;gap:8px;}
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--bg);font-size:13px;}
+  .badge b{font-family:var(--mono);}
+  .badge.near{border-color:var(--warn);color:var(--warn);}
+  .badge.over{background:var(--warn);color:#fff;border-color:var(--warn);}
   /* 구매 버튼(비교표) */
   button.buy{padding:4px 10px;font-size:12px;background:var(--near-black);color:var(--near-white);}
   @media (prefers-color-scheme: dark){ button.buy{background:var(--near-white);color:var(--near-black);} }
@@ -348,14 +347,17 @@
   }
 
   function renderProgress() {
-    const total = pdata.open?.total || 0;
-    const pct = Math.min(100, total / TARGET * 100);
-    const near = total >= TARGET * 0.9;
+    const rows = pdata.open?.rows || [];
+    const byV = {};
+    for (const r of rows) byV[r.vendor] = (byV[r.vendor] || 0) + Number(r.amount ?? r.unit_price * r.qty);
+    const vendors = Object.entries(byV).sort((a, b) => b[1] - a[1]);   // 큰 금액 먼저
     const el = $("#progress");
-    el.className = "progress" + (near ? " near" : "");
-    el.innerHTML = `<div class="lbl"><span>누적 구매</span><b>${won(total)} / ${won(TARGET)}</b></div>
-      <div class="bar"><span style="width:${pct}%"></span></div>
-      ${near ? `<div class="hintline">🔔 300만원에 근접했어요 — 구매내역 탭에서 정산서를 생성하세요.</div>` : ""}`;
+    if (!vendors.length) { el.innerHTML = `<span class="muted">미정산 구매가 없어요.</span>`; return; }
+    el.innerHTML = `<div class="plabel">업체별 미정산 누적 <span class="muted">· 업체당 월 한도 ${won(TARGET)}</span></div>
+      <div class="badges">${vendors.map(([v, amt]) => {
+        const cls = amt >= TARGET ? "over" : amt >= TARGET * 0.9 ? "near" : "";
+        return `<span class="badge ${cls}">${v} · <b>${won(amt)}</b></span>`;
+      }).join("")}</div>`;
   }
 
   async function renderPurchases() {
