@@ -96,6 +96,17 @@
   dialog label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--sub);}
   dialog input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:14px;}
   .dlg-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:4px;}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .flabel{font-size:13px;color:var(--sub);}
+  #upVendors{display:flex;flex-wrap:wrap;gap:8px;}
+  #upVendors label{flex-direction:row;align-items:center;gap:5px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;color:var(--ink);cursor:pointer;}
+  #upVendors label.off{opacity:.4;cursor:not-allowed;}
+  #upVendors input{padding:0;}
+  /* 업체 관리 */
+  .vadd{display:flex;gap:8px;margin-bottom:14px;}
+  .vadd input{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:14px;}
+  .vrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:14px;}
+  .vrow .tag{font-size:11px;color:var(--sub);border:1px solid var(--line);border-radius:99px;padding:1px 8px;margin-left:8px;}
 </style>
 </head>
 <body>
@@ -105,8 +116,7 @@
       <h1>🧪 실험시약 견적 비교</h1>
       <p class="sub">견적서(.xls/.pdf) 올리면 상품코드별로 최저가(단위당)를 비교해줘요.</p>
     </div>
-    <input type="file" id="file" accept=".xls,.xlsx,.pdf" multiple hidden>
-    <button id="pick">📎 견적서 올리기 <span class="hint">.xls · .pdf · 여러 개 가능</span></button>
+    <button id="pick">📎 견적서 올리기 <span class="hint">업체 선택 · .xls · .pdf</span></button>
   </div>
   <div class="status" id="status"></div>
 
@@ -115,6 +125,7 @@
   <div class="tabs">
     <button class="tab active" data-tab="compare">견적 비교</button>
     <button class="tab" data-tab="purchases">구매내역</button>
+    <button class="tab" data-tab="vendors">업체 관리</button>
   </div>
 
   <section id="tab-compare">
@@ -128,8 +139,23 @@
   <section id="tab-purchases" hidden>
     <div id="pout"><p class="muted">불러오는 중…</p></div>
   </section>
+
+  <section id="tab-vendors" hidden>
+    <div id="vout"><p class="muted">불러오는 중…</p></div>
+  </section>
 </div>
 <div id="tip"></div>
+<dialog id="upDlg">
+  <form method="dialog">
+    <h3>📎 견적서 업로드</h3>
+    <div class="field"><span class="flabel">어느 업체 견적서인가요?</span><div id="upVendors"></div></div>
+    <label>파일 (.xls · .pdf · 여러 개)<input type="file" id="upFile" accept=".xls,.xlsx,.pdf" multiple></label>
+    <div class="dlg-actions">
+      <button value="cancel" class="ghost" type="submit">취소</button>
+      <button value="ok" type="submit">업로드</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="buyDlg">
   <form method="dialog">
     <h3 id="buyTitle">구매 기록</h3>
@@ -161,8 +187,8 @@
   $("#out").addEventListener("mousemove", e => { if (tip.classList.contains("show")) place(e); });
   $("#out").addEventListener("mouseout", e => { if (e.target.closest(".ell")) tip.classList.remove("show"); });
 
-  async function uploadOne(file) {
-    const r = await fetch("/api/upload?name=" + encodeURIComponent(file.name), {
+  async function uploadOne(file, vendor) {
+    const r = await fetch("/api/upload?name=" + encodeURIComponent(file.name) + "&vendor=" + encodeURIComponent(vendor), {
       method: "POST", headers: { "content-type": "application/octet-stream" }, body: file,
     });
     const j = await r.json();
@@ -170,20 +196,31 @@
     return j;
   }
 
-  $("#pick").onclick = () => $("#file").click();      // 버튼 → 파일선택창
-  $("#file").onchange = async () => {                  // 고르는 즉시 자동 업로드
-    const files = [...$("#file").files];
-    if (!files.length) return;
+  // 업로드 다이얼로그 — 업체 라디오(활성만 선택가능) + 파일
+  const upDlg = $("#upDlg");
+  $("#pick").onclick = () => {
+    $("#upVendors").innerHTML = vendorsList.length
+      ? vendorsList.map(v => `<label class="${v.active ? "" : "off"}"><input type="radio" name="upv" value="${attr(v.name)}" ${v.active ? "" : "disabled"}> ${v.name}</label>`).join("")
+      : `<span class="muted">업체 관리 탭에서 업체를 먼저 추가하세요.</span>`;
+    $("#upFile").value = "";
+    upDlg.showModal();
+  };
+  upDlg.addEventListener("close", async () => {
+    if (upDlg.returnValue !== "ok") return;
+    const v = $("#upVendors").querySelector('input[name="upv"]:checked');
+    const files = [...$("#upFile").files];
+    if (!v) { $("#status").textContent = "업체를 선택하세요."; return; }
+    if (!files.length) { $("#status").textContent = "파일을 선택하세요."; return; }
     $("#pick").disabled = true;
     try {
       const results = [];
-      for (const f of files) { $("#status").textContent = `업로드 중… ${f.name}`; results.push(await uploadOne(f)); }
+      for (const f of files) { $("#status").textContent = `업로드 중… ${f.name}`; results.push(await uploadOne(f, v.value)); }
       $("#status").textContent = results.map(r => `✅ ${r.vendor||"?"} — ${r.items}개`).join("  ·  ");
       await loadComparison();
     } catch (e) {
       $("#status").textContent = "오류: " + e.message;
-    } finally { $("#pick").disabled = false; $("#file").value = ""; }   // 초기화(같은 파일 재선택 가능)
-  };
+    } finally { $("#pick").disabled = false; }
+  });
 
   const isExpired = r => r.expiration_date && r.expiration_date.slice(0, 10) < today;
   let cache = [];   // 마지막으로 불러온 전체 rows (필터는 화면단에서)
@@ -245,6 +282,36 @@
     document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x === t));
     $("#tab-compare").hidden = t.dataset.tab !== "compare";
     $("#tab-purchases").hidden = t.dataset.tab !== "purchases";
+    $("#tab-vendors").hidden = t.dataset.tab !== "vendors";
+  });
+
+  // ── 업체 관리 ──
+  async function loadVendors() {
+    const r = await fetch("/api/vendors");
+    vendorsList = (await r.json()).vendors || [];
+    renderVendors();
+  }
+  function renderVendors() {
+    const rows = vendorsList.map(v => `<div class="vrow">
+        <span>${v.name}${v.active ? "" : `<span class="tag">업로드 비활성</span>`}</span>
+        <label class="chk"><input type="checkbox" data-vtoggle="${v.id}" ${v.active ? "checked" : ""}> 업로드 가능</label>
+      </div>`).join("");
+    $("#vout").innerHTML = `
+      <div class="vadd"><input id="vname" placeholder="새 업체명 입력" maxlength="40"><button id="vaddBtn">추가</button></div>
+      ${rows || `<p class="muted">업체가 없어요.</p>`}
+      <p class="muted" style="margin-top:12px">· '업로드 가능'을 끄면 견적 업로드 라디오에서만 숨겨져요 (수동 구매엔 계속 사용).</p>`;
+    $("#vaddBtn").onclick = addVendorUI;
+    $("#vname").onkeydown = e => { if (e.key === "Enter") addVendorUI(); };
+  }
+  async function addVendorUI() {
+    const name = $("#vname").value.trim(); if (!name) return;
+    await fetch("/api/vendors", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+    await loadVendors();
+  }
+  $("#vout").addEventListener("change", async e => {
+    const t = e.target.closest("[data-vtoggle]"); if (!t) return;
+    await fetch("/api/vendors", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: Number(t.dataset.vtoggle), active: t.checked }) });
+    await loadVendors();
   });
 
   // ── 구매/정산 ──
@@ -253,6 +320,7 @@
   let viewSel = "open";                      // 구매내역 탭에서 보는 정산 (open=미정산 사이클)
   const setCache = {};                       // 지난 정산 구매 상세 캐시
   let sortKey = "purchased_at", sortDir = "desc", vendorFilter = "";   // 구매내역 정렬/필터 상태
+  let vendorsList = [];                      // 업체 마스터 (업로드 라디오·업체관리 공용)
 
   async function loadPurchases() {
     const r = await fetch("/api/purchases");
@@ -400,6 +468,7 @@
 
   loadComparison();
   loadPurchases();
+  loadVendors();
 </script>
 <!-- Vercel Web Analytics (방문자/페이지뷰, 무료) — 대시보드 Analytics 탭에서 Enable 필요 -->
 <script defer src="/_vercel/insights/script.js"></script>

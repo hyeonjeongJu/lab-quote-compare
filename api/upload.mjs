@@ -10,10 +10,13 @@ export default async function handler(req, res) {
     const chunks = [];
     for await (const c of req) chunks.push(c);
     const buffer = Buffer.concat(chunks);
-    const name = decodeURIComponent(new URL(req.url, "http://x").searchParams.get("name") || "upload");
+    const url = new URL(req.url, "http://x");
+    const name = decodeURIComponent(url.searchParams.get("name") || "upload");
+    const vendor = decodeURIComponent(url.searchParams.get("vendor") || "");   // 라디오로 고른 업체(통제 목록)
 
     const parsed = await parseQuote(name, buffer);
     if (!parsed.items.length) return res.status(422).json({ error: "견적 품목을 못 찾음 (형식 확인)", parsed });
+    if (vendor) parsed.vendor = vendor;                                        // 파싱값 대신 선택값으로 확정(드리프트 차단)
     const saved = await saveQuote(parsed);
     res.status(200).json({ ok: true, vendor: parsed.vendor, items: parsed.items.length, ...saved });
   } catch (e) {

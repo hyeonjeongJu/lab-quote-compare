@@ -1,3 +1,16 @@
+-- 업체 마스터 (통제 목록) — 업로드 라디오·수동입력 셀렉트 소스
+CREATE TABLE IF NOT EXISTS vendor (
+  id         SERIAL PRIMARY KEY,
+  name       TEXT UNIQUE NOT NULL,
+  active     BOOLEAN NOT NULL DEFAULT true,   -- 견적 업로드 라디오 활성(파서 검증됨). 수동입력은 활성무관 전체 사용
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO vendor (name, active) VALUES
+  ('팜텍', true), ('비티비(동인)', true),
+  ('삼보', false), ('에스비', false), ('코어젠', false), ('경동가스', false), ('지성문구', false)
+ON CONFLICT (name) DO NOTHING;
+
 -- 상품 카탈로그 (유지)
 CREATE TABLE IF NOT EXISTS product (
   id           SERIAL PRIMARY KEY,
@@ -71,7 +84,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['product','quote','offer','settlement','purchase'] LOOP
+  FOREACH t IN ARRAY ARRAY['vendor','product','quote','offer','settlement','purchase'] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS trg_%1$s_updated ON %1$s', t);
     EXECUTE format('CREATE TRIGGER trg_%1$s_updated BEFORE UPDATE ON %1$s
                     FOR EACH ROW EXECUTE FUNCTION set_updated_at()', t);
