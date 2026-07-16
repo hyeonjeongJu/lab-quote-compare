@@ -19,7 +19,7 @@ export default async function handler(req, res) {
       return res.status(422).json({ error: `'${vendor}'는 견적 업로드 지원 업체가 아니에요 (파서 미검증)` });
 
     const parsed = await parseQuote(name, buffer, vendor);
-    if (!parsed.items.length) return res.status(422).json({ error: "견적 품목을 못 찾음 (형식 확인)", parsed });
+    if (!parsed.items.length) return res.status(422).json({ error: `견적 품목을 못 찾았어요. '${vendor}' 견적서 형식이 맞는지(업체 선택·파일) 확인하세요.`, parsed });
 
     // 선택 업체 ↔ 파일 속 업체명 일치 검증 (공백·법인격 무시, 파일에서 업체명 못 읽으면 통과)
     const norm = s => String(s || "").replace(/\s+/g, "").replace(/주식회사|㈜|\(주\)/g, "");
