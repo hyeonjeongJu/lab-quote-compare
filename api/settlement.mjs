@@ -12,7 +12,8 @@ export default async function handler(req, res) {
     if (req.method === "POST") {                    // 정산서 생성 (열린 구매 → 새 정산으로 묶고 리셋)
       const b = await readJson(req);
       if (!b.settledAt) return res.status(422).json({ error: "settledAt 필요" });
-      return res.status(200).json(await createSettlement(b.settledAt, b.memo));
+      if (!b.vendor) return res.status(422).json({ error: "정산할 업체를 지정하세요" });
+      return res.status(200).json(await createSettlement(b.settledAt, b.memo, b.vendor));
     }
     if (req.method === "GET") {                      // 정산 상세(구매 목록) — export용
       const id = new URL(req.url, "http://x").searchParams.get("id");

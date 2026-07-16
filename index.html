@@ -21,9 +21,10 @@
   .sub{color:var(--sub);font-size:13px;margin:0;}
   .header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
   .titles{min-width:0;}
-  button{padding:9px 16px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:filter .12s;}
-  button:hover{filter:brightness(1.07);}
-  button:disabled{opacity:.5;cursor:default;filter:none;}
+  button{padding:9px 16px;border:0;border-radius:10px;background:var(--near-black);color:var(--near-white);font-size:14px;font-weight:600;cursor:pointer;transition:opacity .12s;}
+  button:hover{opacity:.88;}
+  button:disabled{opacity:.5;cursor:default;}
+  @media (prefers-color-scheme: dark){ button{background:var(--near-white);color:var(--near-black);} }
   #pick{display:inline-flex;flex-direction:column;align-items:center;gap:3px;padding:10px 22px;font-size:15px;background:var(--near-black);color:var(--near-white);margin-left:auto;}
   #pick:hover{filter:none;opacity:.88;}
   #pick .hint{font-weight:400;font-size:11px;opacity:.75;}
@@ -79,6 +80,8 @@
   .toolbar{flex-wrap:wrap;}
   th.srt{cursor:pointer;user-select:none;white-space:nowrap;}
   th.srt:hover{color:var(--ink);}
+  td.vcell{cursor:pointer;}
+  td.vcell:hover{text-decoration:underline;}
   select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;max-width:60vw;}
   .manual-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px;padding:10px;border:1px dashed var(--line);border-radius:10px;}
   .manual-add input,.manual-add select{padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink);font-size:13px;min-width:0;}
@@ -127,7 +130,7 @@
       <h1>🧪 실험시약 견적 비교</h1>
       <p class="sub">견적서(.xls/.pdf) 올리면 상품코드별로 최저가(단위당)를 비교해줘요.</p>
     </div>
-    <button id="pick">📎 견적서 올리기 <span class="hint">업체 선택 · .xls · .pdf</span></button>
+    <button id="pick">📎 견적서 올리기 <span class="hint">.xls · .pdf</span></button>
   </div>
   <div class="status" id="status"></div>
 
@@ -356,11 +359,13 @@
     if (!vendors.length) { el.innerHTML = `<span class="muted">미정산 구매가 없어요.</span>`; return; }
     el.innerHTML = `<div class="plabel">업체별 미정산 누적 <span class="muted">· 업체당 월 한도 ${won(TARGET)}</span></div>
       <div class="badges">${vendors.map(([v, amt]) => {
-        const ratio = Math.min(1, amt / TARGET);          // 한도에 가까울수록 짙은 초록
-        const L = 94 - ratio * 58;                        // 94%(연녹) → 36%(짙은 초록)
-        const fg = L < 58 ? "#fff" : "#0f5132";
-        const over = amt >= TARGET;
-        return `<span class="badge" style="background:hsl(150 55% ${L}%);border-color:hsl(150 45% ${Math.max(30, L - 14)}%);color:${fg}">${over ? "⚠️ " : ""}${v} · <b>${won(amt)}</b></span>`;
+        const over = amt >= TARGET;                       // 초과만 빨강, 나머지는 초록 그라데이션
+        const ratio = Math.min(1, amt / TARGET);
+        const L = 94 - ratio * 58;                        // 미만: 94%(연녹) → 36%(짙은 초록)
+        const bg = over ? "hsl(0 68% 56%)" : `hsl(150 55% ${L}%)`;
+        const border = over ? "hsl(0 58% 46%)" : `hsl(150 45% ${Math.max(30, L - 14)}%)`;
+        const fg = over ? "#fff" : (L < 58 ? "#fff" : "#0f5132");
+        return `<span class="badge" style="background:${bg};border-color:${border};color:${fg}">${over ? "⚠️ " : ""}${v} · <b>${won(amt)}</b></span>`;
       }).join("")}</div>`;
   }
 
@@ -368,7 +373,7 @@
     if (!pdata.settlements.some(s => String(s.id) === String(viewSel))) viewSel = "open";   // 선택 유효성
     const opts = [`<option value="open">현재 (미정산) · ${won(pdata.open.total)}</option>`]
       .concat(pdata.settlements.map(s =>
-        `<option value="${s.id}">${(s.settled_at||"").slice(0,10)} · ${won(s.total_amount)}${s.memo ? " · " + s.memo : ""}</option>`)).join("");
+        `<option value="${s.id}">${s.vendor ? s.vendor + " · " : ""}${(s.settled_at||"").slice(0,10)} · ${won(s.total_amount)}</option>`)).join("");
 
     const isOpen = viewSel === "open";
     const all = isOpen ? pdata.open.rows : await fetchSettlement(viewSel);
@@ -386,7 +391,7 @@
 
     const body = view.map(r => `<tr>
       <td class="ell" data-full="${attr(r.code + " " + (r.name || ""))}"><b>${r.code}</b> ${r.name || ""}</td>
-      <td class="ell" data-full="${attr(r.vendor)}">${r.vendor || ""}</td>
+      <td class="ell vcell" data-full="${attr(r.vendor)}" data-vf="${attr(r.vendor)}" title="이 업체만 보기">${r.vendor || ""}</td>
       <td class="num">${won(r.unit_price)}</td>
       <td class="num">${r.qty}</td>
       <td class="num">${won(amt(r))}</td>
@@ -405,7 +410,8 @@
         ${isOpen ? "<th></th>" : ""}</tr></thead>`;
     const tableBlock = all.length ? `<div class="tw"><table><colgroup>${cols}</colgroup>${th}<tbody>${body}</tbody></table></div>`
       : `<p class="muted">${isOpen ? "현재 사이클에 구매내역이 없어요. 견적 비교 탭에서 [구매]를 눌러 담아보세요." : "이 정산에 구매내역이 없어요."}</p>`;
-    const settleBtn = isOpen && all.length ? `<button id="settleBtn">📄 정산서 생성 (${won(pdata.open.total)})</button>` : "";
+    const settleBtn = (isOpen && vendorFilter && view.length) ? `<button id="settleBtn">📄 ${vendorFilter} 정산서 생성 (${won(total)})</button>` : "";
+    const settleHint = (isOpen && all.length && !vendorFilter) ? `<span class="muted">정산서는 업체별로 만들어요 — 표의 업체명을 클릭해 그 업체만 필터한 뒤 생성하세요.</span>` : "";
     const vopts = vendorsList.map(v => `<option value="${attr(v.name)}"${v.name === "비티비(동인)" ? " selected" : ""}>${v.name}</option>`).join("");
     const manualRow = isOpen ? `<div class="manual-add">
         <input id="mCode" placeholder="상품코드" style="flex:1 1 100px">
@@ -428,7 +434,7 @@
       </div>
       ${manualRow}
       ${tableBlock}
-      ${settleBtn ? `<div class="settle-row"><span></span>${settleBtn}</div>` : ""}
+      ${(settleBtn || settleHint) ? `<div class="settle-row"><span></span>${settleBtn || settleHint}</div>` : ""}
       ${!isOpen ? `<div class="settle-row"><span></span><button id="delSetBtn" class="ghost">🗑 이 정산서 삭제</button></div>` : ""}`;
 
     $("#setSel").value = viewSel;
@@ -487,8 +493,10 @@
     await loadPurchases();
   });
 
-  // 구매내역 탭: 구매 삭제(열린 사이클만)
+  // 구매내역 탭: 업체 셀 클릭=그 업체만 필터(재클릭 해제) / 구매 삭제(열린 사이클만)
   $("#pout").addEventListener("click", async e => {
+    const vc = e.target.closest("[data-vf]");
+    if (vc) { vendorFilter = vendorFilter === vc.dataset.vf ? "" : vc.dataset.vf; renderPurchases(); return; }
     const del = e.target.closest("[data-del]");
     if (del && confirm("이 구매를 삭제할까요?")) {
       await fetch("/api/purchases?id=" + del.dataset.del, { method: "DELETE" });
@@ -497,14 +505,16 @@
   });
 
   async function doSettle() {
-    const total = pdata.open.total;
-    if (!confirm(`현재 ${won(total)}을 정산서로 생성할까요?\n생성 후 이 사이클은 초기화돼요 (상품·견적은 유지).`)) return;
-    const r = await fetch("/api/settlement", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ settledAt: today }) });
+    const vendor = vendorFilter;
+    if (!vendor) return;
+    const total = pdata.open.rows.filter(r => r.vendor === vendor).reduce((s, r) => s + Number(r.amount ?? r.unit_price * r.qty), 0);
+    if (!confirm(`[${vendor}] 미정산 ${won(total)}을 정산서로 발행할까요?\n발행 후 이 구매들은 정산 처리돼요 (상품·견적은 유지).`)) return;
+    const r = await fetch("/api/settlement", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ settledAt: today, vendor }) });
     const j = await r.json();
     if (!r.ok) { alert("오류: " + (j.error || "실패")); return; }
     viewSel = String(j.id);                              // 새로 만든 정산으로 화면 전환
     await loadPurchases();
-    csvDownload(await fetchSettlement(j.id), "정산_" + today);   // 생성 즉시 CSV 다운로드
+    csvDownload(await fetchSettlement(j.id), "정산_" + vendor + "_" + today);   // 생성 즉시 CSV 다운로드
   }
 
   // CSV 내보내기(엑셀에서 열림, BOM 포함). 양식 임시 — 나중 교체 가능

@@ -59,10 +59,12 @@ CREATE TABLE IF NOT EXISTS settlement (
   id           SERIAL PRIMARY KEY,
   settled_at   DATE NOT NULL,
   total_amount INTEGER NOT NULL,              -- 정산 시점 총액 스냅샷
+  vendor       TEXT,                          -- 정산 대상 업체(업체별 정산)
   memo         TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE settlement ADD COLUMN IF NOT EXISTS vendor TEXT;   -- 기존 DB 보강
 
 -- 구매 한 건 = 구매 시점 값 freeze(스냅샷). offer/product 바뀌거나 지워져도 불변
 CREATE TABLE IF NOT EXISTS purchase (
