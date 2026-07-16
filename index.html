@@ -83,6 +83,8 @@
   td.vcell{cursor:pointer;}
   td.vcell:hover{text-decoration:underline;}
   select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;max-width:60vw;}
+  select.thsel{padding:0;border:0;background:transparent;color:var(--sub);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;max-width:100%;}
+  select.thsel:hover{color:var(--ink);}
   .manual-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px;padding:10px;border:1px dashed var(--line);border-radius:10px;}
   .manual-add input,.manual-add select{padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink);font-size:13px;min-width:0;}
   .manual-add button{padding:6px 14px;font-size:13px;margin-left:auto;}
@@ -140,7 +142,7 @@
   <div class="tabs">
     <button class="tab active" data-tab="compare">견적 비교</button>
     <button class="tab" data-tab="purchases">구매내역</button>
-    <button class="tab" data-tab="vendors">업체 관리</button>
+    <button class="tab" data-tab="vendors" style="margin-left:auto">업체 관리</button>
   </div>
 
   <section id="tab-compare">
@@ -404,7 +406,8 @@
       ? `<col style="width:28%"><col style="width:19%"><col style="width:13%"><col style="width:9%"><col style="width:14%"><col style="width:11%"><col style="width:6%">`
       : `<col style="width:30%"><col style="width:21%"><col style="width:14%"><col style="width:10%"><col style="width:15%"><col style="width:10%">`;
     const th = `<thead><tr>
-        <th>상품</th><th>업체</th>
+        <th>상품</th>
+        <th><select id="vendorFilter" class="thsel"><option value="">업체 (전체)</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select></th>
         <th class="srt" data-k="unit_price" style="text-align:right">단가${arr("unit_price")}</th>
         <th class="srt" data-k="qty" style="text-align:right">수량${arr("qty")}</th>
         <th class="srt" data-k="amount" style="text-align:right">금액${arr("amount")}</th>
@@ -424,13 +427,9 @@
         <input id="mDate" type="date" value="${today}">
         <button id="mAdd">추가</button>
       </div>` : "";
-    const vendorSel = vendors.length > 1
-      ? `<select id="vendorFilter"><option value="">전체 업체</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select>` : "";
-
     $("#pout").innerHTML = `
       <div class="toolbar">
         <span class="count">${view.length}건 · 합계 <b>${won(total)}</b></span>
-        ${vendorSel}
         <select id="setSel" style="margin-left:auto">${opts}</select>
         <button class="ghost" id="csvBtn">⬇ CSV 내려받기</button>
       </div>
