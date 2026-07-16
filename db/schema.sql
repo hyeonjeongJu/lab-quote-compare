@@ -37,6 +37,32 @@ CREATE TABLE IF NOT EXISTS offer (
 CREATE INDEX IF NOT EXISTS idx_offer_product ON offer(product_id);
 CREATE INDEX IF NOT EXISTS idx_offer_quote   ON offer(quote_id);
 
+-- 정산 (300만원 묶음 1건 = 정산서 1장)
+CREATE TABLE IF NOT EXISTS settlement (
+  id           SERIAL PRIMARY KEY,
+  settled_at   DATE NOT NULL,
+  total_amount INTEGER NOT NULL,              -- 정산 시점 총액 스냅샷
+  memo         TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 구매 한 건 = 구매 시점 값 freeze(스냅샷). offer/product 바뀌거나 지워져도 불변
+CREATE TABLE IF NOT EXISTS purchase (
+  id            SERIAL PRIMARY KEY,
+  product_id    INTEGER REFERENCES product(id) ON DELETE SET NULL,  -- 링크용, 상품 지워도 기록 유지
+  code          TEXT,                         -- freeze 스냅샷
+  name          TEXT,                         -- freeze
+  vendor        TEXT,                         -- freeze (산 업체)
+  unit_price    INTEGER NOT NULL,             -- freeze 포장당 단가
+  qty           INTEGER NOT NULL DEFAULT 1,
+  purchased_at  DATE NOT NULL,
+  settlement_id INTEGER REFERENCES settlement(id) ON DELETE CASCADE, -- NULL=열린 사이클, 정산되면 채워짐
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_purchase_settlement ON purchase(settlement_id);
+
 -- updated_at 자동 갱신 (INSERT 시 default, UPDATE 시 트리거)
 CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
@@ -45,7 +71,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['product','quote','offer'] LOOP
+  FOREACH t IN ARRAY ARRAY['product','quote','offer','settlement','purchase'] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS trg_%1$s_updated ON %1$s', t);
     EXECUTE format('CREATE TRIGGER trg_%1$s_updated BEFORE UPDATE ON %1$s
                     FOR EACH ROW EXECUTE FUNCTION set_updated_at()', t);

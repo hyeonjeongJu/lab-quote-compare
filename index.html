@@ -35,7 +35,7 @@
   .prod-h .code{font-family:var(--mono);font-weight:700;font-size:14px;}
   .prod-h .nm{font-size:13px;color:var(--sub);}
   .tw{overflow-x:auto;}                                   /* 좁아지면 가로 스크롤(찌그러짐 방지) */
-  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;min-width:600px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;min-width:640px;}
   th,td{text-align:left;padding:9px 14px;border-top:1px solid var(--line);word-break:break-word;vertical-align:top;}
   td.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}  /* 넘치면 … , hover시 #tip 말풍선 */
   #tip{position:fixed;z-index:50;max-width:320px;padding:7px 10px;border-radius:8px;
@@ -56,6 +56,42 @@
   .chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);cursor:pointer;user-select:none;}
   .chk input{cursor:pointer;}
   .count{color:var(--sub);font-size:12px;font-family:var(--mono);margin-right:auto;}
+
+  /* 탭 */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;}
+  .tab{background:none;color:var(--sub);border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 14px;font-size:14px;font-weight:600;filter:none;}
+  .tab:hover{filter:none;color:var(--ink);}
+  .tab.active{color:var(--ink);border-bottom-color:var(--near-black);}
+  @media (prefers-color-scheme: dark){ .tab.active{border-bottom-color:var(--near-white);} }
+  /* 누적 진행 배너 */
+  .progress{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:16px;background:var(--card);}
+  .progress .lbl{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:8px;}
+  .progress .lbl b{font-family:var(--mono);}
+  .bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;}
+  .bar>span{display:block;height:100%;background:var(--best);border-radius:99px;transition:width .3s;}
+  .progress.near{border-color:var(--warn);}
+  .progress.near .bar>span{background:var(--warn);}
+  .hintline{font-size:12px;color:var(--warn);font-weight:600;margin-top:8px;}
+  /* 구매 버튼(비교표) */
+  button.buy{padding:4px 10px;font-size:12px;background:var(--near-black);color:var(--near-white);}
+  @media (prefers-color-scheme: dark){ button.buy{background:var(--near-white);color:var(--near-black);} }
+  td.act{text-align:center;}
+  /* 구매내역 */
+  .settle-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 2px;}
+  #settleBtn{background:var(--near-black);color:var(--near-white);}
+  #settleBtn:hover{filter:none;opacity:.88;}
+  @media (prefers-color-scheme: dark){ #settleBtn{background:var(--near-white);color:var(--near-black);} }
+  button.ghost{background:none;color:var(--sub);padding:4px 8px;font-size:12px;filter:none;}
+  button.ghost:hover{filter:none;color:var(--ink);}
+  .set-hist .item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:13px;}
+  /* 구매 다이얼로그 */
+  dialog{border:1px solid var(--line);border-radius:14px;padding:20px;background:var(--card);color:var(--ink);max-width:340px;width:90%;}
+  dialog::backdrop{background:rgba(0,0,0,.4);}
+  dialog h3{margin:0 0 14px;font-size:16px;}
+  dialog form{display:flex;flex-direction:column;gap:12px;}
+  dialog label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--sub);}
+  dialog input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:14px;}
+  .dlg-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:4px;}
 </style>
 </head>
 <body>
@@ -70,13 +106,38 @@
   </div>
   <div class="status" id="status"></div>
 
-  <div class="toolbar">
-    <span class="count" id="count"></span>
-    <label class="chk"><input type="checkbox" id="hideExpired"> 만료된 견적 숨기기</label>
+  <div class="progress" id="progress"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="compare">견적 비교</button>
+    <button class="tab" data-tab="purchases">구매내역</button>
   </div>
-  <div id="out"><p class="muted">불러오는 중…</p></div>
+
+  <section id="tab-compare">
+    <div class="toolbar">
+      <span class="count" id="count"></span>
+      <label class="chk"><input type="checkbox" id="hideExpired"> 만료된 견적 숨기기</label>
+    </div>
+    <div id="out"><p class="muted">불러오는 중…</p></div>
+  </section>
+
+  <section id="tab-purchases" hidden>
+    <div id="pout"><p class="muted">불러오는 중…</p></div>
+  </section>
 </div>
 <div id="tip"></div>
+<dialog id="buyDlg">
+  <form method="dialog">
+    <h3 id="buyTitle">구매 기록</h3>
+    <label>단가(포장당) <input id="buyPrice" type="number" min="0"></label>
+    <label>수량 <input id="buyQty" type="number" min="1" value="1"></label>
+    <label>구매일 <input id="buyDate" type="date"></label>
+    <div class="dlg-actions">
+      <button value="cancel" class="ghost" type="submit">취소</button>
+      <button id="buyOk" value="ok" type="submit">기록</button>
+    </div>
+  </form>
+</dialog>
 
 <script type="module">
   const $ = s => document.querySelector(s);
@@ -161,19 +222,156 @@
           <td class="num unit">${r.unit_price != null ? Number(r.unit_price).toLocaleString() + "원/" + r.spec_unit : '<span class="muted">규격?</span>'}</td>
           <td class="dt">${r.expiration_date ? r.expiration_date.slice(0,10) : "-"}</td>
           <td class="muted ell" data-full="${attr(r.memo)}">${r.memo || ""}</td>
+          <td class="act"><button class="buy" data-code="${attr(g.code)}" data-name="${attr(g.name)}" data-vendor="${attr(r.vendor)}" data-price="${r.price}">구매</button></td>
         </tr>`;
       }).join("");
       return `<div class="prod">
         <div class="prod-h"><span class="code">${g.code}</span> · <span class="nm">${g.name || ""}${g.spec ? " ("+g.spec+")" : ""}</span></div>
         <div class="tw"><table>
-        <colgroup><col style="width:25%"><col style="width:18%"><col style="width:13%"><col style="width:14%"><col style="width:15%"><col style="width:15%"></colgroup>
-        <thead><tr><th>업체</th><th>제조사</th><th style="text-align:right">가격</th><th style="text-align:right">단위당</th><th>만료일</th><th>비고</th></tr></thead>
+        <colgroup><col style="width:22%"><col style="width:15%"><col style="width:12%"><col style="width:13%"><col style="width:13%"><col style="width:15%"><col style="width:10%"></colgroup>
+        <thead><tr><th>업체</th><th>제조사</th><th style="text-align:right">가격</th><th style="text-align:right">단위당</th><th>만료일</th><th>비고</th><th style="text-align:center">구매</th></tr></thead>
         <tbody>${body}</tbody></table></div>
       </div>`;
     }).join("");
   }
 
+  // ── 탭 전환 ──
+  document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x === t));
+    $("#tab-compare").hidden = t.dataset.tab !== "compare";
+    $("#tab-purchases").hidden = t.dataset.tab !== "purchases";
+  });
+
+  // ── 구매/정산 ──
+  const TARGET = 3000000;                    // 정산 목표액(300만원)
+  let pdata = { open: { rows: [], total: 0 }, settlements: [] };
+  let viewSel = "open";                      // 구매내역 탭에서 보는 정산 (open=미정산 사이클)
+  const setCache = {};                       // 지난 정산 구매 상세 캐시
+
+  async function loadPurchases() {
+    const r = await fetch("/api/purchases");
+    pdata = await r.json();
+    for (const k in setCache) delete setCache[k];   // 갱신되면 캐시 무효화
+    renderProgress(); await renderPurchases();
+  }
+
+  async function fetchSettlement(id) {
+    if (setCache[id]) return setCache[id];
+    const r = await fetch("/api/settlement?id=" + id);
+    return (setCache[id] = (await r.json()).rows || []);
+  }
+
+  function renderProgress() {
+    const total = pdata.open?.total || 0;
+    const pct = Math.min(100, total / TARGET * 100);
+    const near = total >= TARGET * 0.9;
+    const el = $("#progress");
+    el.className = "progress" + (near ? " near" : "");
+    el.innerHTML = `<div class="lbl"><span>누적 구매</span><b>${won(total)} / ${won(TARGET)}</b></div>
+      <div class="bar"><span style="width:${pct}%"></span></div>
+      ${near ? `<div class="hintline">🔔 300만원에 근접했어요 — 구매내역 탭에서 정산서를 생성하세요.</div>` : ""}`;
+  }
+
+  async function renderPurchases() {
+    // 드롭다운 옵션: 현재(미정산) + 지난 정산들
+    if (!pdata.settlements.some(s => String(s.id) === String(viewSel))) viewSel = "open";   // 선택 유효성
+    const opts = [`<option value="open">현재 (미정산) · ${won(pdata.open.total)}</option>`]
+      .concat(pdata.settlements.map(s =>
+        `<option value="${s.id}">${(s.settled_at||"").slice(0,10)} · ${won(s.total_amount)}${s.memo ? " · " + s.memo : ""}</option>`)).join("");
+
+    const isOpen = viewSel === "open";
+    const rows = isOpen ? pdata.open.rows : await fetchSettlement(viewSel);
+    const amt = r => Number(r.amount ?? r.unit_price * r.qty);
+    const total = rows.reduce((a, r) => a + amt(r), 0);
+
+    const body = rows.map(r => `<tr>
+      <td class="ell" data-full="${attr(r.code + " " + (r.name || ""))}"><b>${r.code}</b> ${r.name || ""}</td>
+      <td class="ell" data-full="${attr(r.vendor)}">${r.vendor || ""}</td>
+      <td class="num">${won(r.unit_price)}</td>
+      <td class="num">${r.qty}</td>
+      <td class="num">${won(amt(r))}</td>
+      <td class="dt">${(r.purchased_at || "").slice(0,10) || "-"}</td>
+      ${isOpen ? `<td class="act"><button class="ghost" data-del="${r.id}" title="삭제">✕</button></td>` : ""}
+    </tr>`).join("");
+    const cols = isOpen
+      ? `<col style="width:30%"><col style="width:20%"><col style="width:13%"><col style="width:8%"><col style="width:14%"><col style="width:11%"><col style="width:6%">`
+      : `<col style="width:32%"><col style="width:22%"><col style="width:13%"><col style="width:9%"><col style="width:14%"><col style="width:10%">`;
+    const tableBlock = rows.length ? `<div class="tw"><table>
+      <colgroup>${cols}</colgroup>
+      <thead><tr><th>상품</th><th>업체</th><th style="text-align:right">단가</th><th style="text-align:right">수량</th><th style="text-align:right">금액</th><th>구매일</th>${isOpen ? "<th></th>" : ""}</tr></thead>
+      <tbody>${body}</tbody></table></div>`
+      : `<p class="muted">${isOpen ? "현재 사이클에 구매내역이 없어요. 견적 비교 탭에서 [구매]를 눌러 담아보세요." : "이 정산에 구매내역이 없어요."}</p>`;
+    const settleBtn = isOpen && rows.length ? `<button id="settleBtn">📄 정산서 생성 (${won(total)})</button>` : "";
+
+    $("#pout").innerHTML = `
+      <div class="toolbar">
+        <span class="count">${rows.length}건 · 합계 <b>${won(total)}</b></span>
+        <select id="setSel">${opts}</select>
+        <button class="ghost" id="csvBtn">⬇ CSV 내려받기</button>
+      </div>
+      ${tableBlock}
+      ${settleBtn ? `<div class="settle-row"><span></span>${settleBtn}</div>` : ""}`;
+
+    $("#setSel").value = viewSel;
+    $("#setSel").onchange = async e => { viewSel = e.target.value; await renderPurchases(); };
+    $("#csvBtn").onclick = () => {
+      const label = isOpen ? "현재_" + today
+        : "정산_" + ((pdata.settlements.find(s => String(s.id) === String(viewSel)) || {}).settled_at || "").slice(0,10);
+      csvDownload(rows, label);
+    };
+    const sb = $("#settleBtn"); if (sb) sb.onclick = doSettle;
+  }
+
+  // 구매 버튼(비교표) → 다이얼로그
+  const dlg = $("#buyDlg"); let buyCtx = null;
+  $("#out").addEventListener("click", e => {
+    const b = e.target.closest(".buy"); if (!b) return;
+    buyCtx = { code: b.dataset.code, name: b.dataset.name, vendor: b.dataset.vendor };
+    $("#buyTitle").textContent = "구매 기록 — " + b.dataset.code;
+    $("#buyPrice").value = b.dataset.price; $("#buyQty").value = 1; $("#buyDate").value = today;
+    dlg.showModal();
+  });
+  dlg.addEventListener("close", async () => {
+    if (dlg.returnValue !== "ok" || !buyCtx) return;
+    const body = { ...buyCtx, unitPrice: Number($("#buyPrice").value), qty: Number($("#buyQty").value) || 1, purchasedAt: $("#buyDate").value };
+    if (!body.unitPrice || !body.purchasedAt) return;
+    await fetch("/api/purchases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    await loadPurchases();
+  });
+
+  // 구매내역 탭: 구매 삭제(열린 사이클만)
+  $("#pout").addEventListener("click", async e => {
+    const del = e.target.closest("[data-del]");
+    if (del && confirm("이 구매를 삭제할까요?")) {
+      await fetch("/api/purchases?id=" + del.dataset.del, { method: "DELETE" });
+      await loadPurchases();
+    }
+  });
+
+  async function doSettle() {
+    const total = pdata.open.total;
+    if (!confirm(`현재 ${won(total)}을 정산서로 생성할까요?\n생성 후 이 사이클은 초기화돼요 (상품·견적은 유지).`)) return;
+    const r = await fetch("/api/settlement", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ settledAt: today }) });
+    const j = await r.json();
+    if (!r.ok) { alert("오류: " + (j.error || "실패")); return; }
+    viewSel = String(j.id);                              // 새로 만든 정산으로 화면 전환
+    await loadPurchases();
+    csvDownload(await fetchSettlement(j.id), "정산_" + today);   // 생성 즉시 CSV 다운로드
+  }
+
+  // CSV 내보내기(엑셀에서 열림, BOM 포함). 양식 임시 — 나중 교체 가능
+  function csvDownload(rows, name) {
+    const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = [["상품코드","품명","업체","단가","수량","금액","구매일"].join(",")]
+      .concat((rows || []).map(x => [x.code, x.name, x.vendor, x.unit_price, x.qty, (x.amount ?? x.unit_price * x.qty), (x.purchased_at || "").slice(0,10)].map(q).join(",")));
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `${name || "export"}.csv`; a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   loadComparison();
+  loadPurchases();
 </script>
 <!-- Vercel Web Analytics (방문자/페이지뷰, 무료) — 대시보드 Analytics 탭에서 Enable 필요 -->
 <script defer src="/_vercel/insights/script.js"></script>
