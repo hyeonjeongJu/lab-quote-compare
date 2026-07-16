@@ -1,4 +1,4 @@
-import { addPurchase, getOpenPurchases, deletePurchase, getSettlements } from "../lib/db.mjs";
+import { addPurchase, getOpenPurchases, deletePurchase, getSettlements, vendorExists } from "../lib/db.mjs";
 
 export const config = { api: { bodyParser: false } };
 
@@ -16,6 +16,7 @@ export default async function handler(req, res) {
     if (req.method === "POST") {
       const b = await readJson(req);
       if (!b.code || !b.unitPrice || !b.purchasedAt) return res.status(422).json({ error: "code·unitPrice·purchasedAt 필요" });
+      if (!(await vendorExists(b.vendor))) return res.status(422).json({ error: "등록되지 않은 업체예요 (업체 관리에서 확인)" });
       return res.status(200).json(await addPurchase(b));
     }
     if (req.method === "DELETE") {

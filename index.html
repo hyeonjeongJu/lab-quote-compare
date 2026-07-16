@@ -113,6 +113,9 @@
   #vaddBtn:hover{filter:none;opacity:.88;}
   @media (prefers-color-scheme: dark){ #vaddBtn{background:var(--near-white);color:var(--near-black);} }
   .help{font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 2px 14px;}
+  .vbadge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--bg);font-size:13px;}
+  .vbadge .vx{background:none;border:0;color:var(--sub);cursor:pointer;padding:0;font-size:12px;line-height:1;filter:none;}
+  .vbadge .vx:hover{color:var(--warn);filter:none;}
   .vdel{color:var(--warn);}
   #delSetBtn{color:var(--warn);}
 </style>
@@ -299,16 +302,14 @@
     const r = await fetch("/api/vendors");
     vendorsList = (await r.json()).vendors || [];
     renderVendors();
+    renderPurchases();   // 업체 변경 시 수동추가 셀렉트도 최신화
   }
   function renderVendors() {
-    const rows = vendorsList.map(v => `<div class="vrow">
-        <span>${v.name}${v.builtin ? "" : ` <span class="tag">추가됨</span>`}</span>
-        ${v.builtin ? "" : `<button class="ghost vdel" data-vdel="${v.id}" title="삭제">✕</button>`}
-      </div>`).join("");
+    const badges = vendorsList.map(v => `<span class="vbadge">${v.name}${v.builtin ? "" : `<button class="vx" data-vdel="${v.id}" title="삭제">✕</button>`}</span>`).join("");
     $("#vout").innerHTML = `
       <p class="help">여기서 추가하신 업체만 구매내역의 <b>수동 구매 입력</b>에서 선택하실 수 있어요.<br>견적 업로드 지원 업체는 기본으로 등록되어 있으며, 삭제할 수 없습니다.</p>
       <div class="vadd"><input id="vname" placeholder="새 업체명 입력" maxlength="40"><button id="vaddBtn">추가</button></div>
-      ${rows || `<p class="muted">업체가 없어요.</p>`}`;
+      <div class="badges">${badges || `<span class="muted">업체가 없어요.</span>`}</div>`;
     $("#vaddBtn").onclick = addVendorUI;
     $("#vname").onkeydown = e => { if (e.key === "Enter") addVendorUI(); };
   }
@@ -355,8 +356,11 @@
     if (!vendors.length) { el.innerHTML = `<span class="muted">미정산 구매가 없어요.</span>`; return; }
     el.innerHTML = `<div class="plabel">업체별 미정산 누적 <span class="muted">· 업체당 월 한도 ${won(TARGET)}</span></div>
       <div class="badges">${vendors.map(([v, amt]) => {
-        const cls = amt >= TARGET ? "over" : amt >= TARGET * 0.9 ? "near" : "";
-        return `<span class="badge ${cls}">${v} · <b>${won(amt)}</b></span>`;
+        const ratio = Math.min(1, amt / TARGET);          // 한도에 가까울수록 짙은 초록
+        const L = 94 - ratio * 58;                        // 94%(연녹) → 36%(짙은 초록)
+        const fg = L < 58 ? "#fff" : "#0f5132";
+        const over = amt >= TARGET;
+        return `<span class="badge" style="background:hsl(150 55% ${L}%);border-color:hsl(150 45% ${Math.max(30, L - 14)}%);color:${fg}">${over ? "⚠️ " : ""}${v} · <b>${won(amt)}</b></span>`;
       }).join("")}</div>`;
   }
 
@@ -461,6 +465,7 @@
     if (!body.code || !body.name || !body.vendor || !body.unitPrice || !body.qty || !body.purchasedAt) {
       $("#status").textContent = "모든 값을 입력하세요 (상품코드·품명·업체·단가·수량·구매일)."; return;
     }
+    if (!vendorsList.some(v => v.name === body.vendor)) { $("#status").textContent = "목록에 없는 업체예요. 업체 관리에서 확인하세요."; return; }
     await fetch("/api/purchases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     await loadPurchases();
   }
@@ -505,8 +510,11 @@
   // CSV 내보내기(엑셀에서 열림, BOM 포함). 양식 임시 — 나중 교체 가능
   function csvDownload(rows, name) {
     const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const amt = x => Number(x.amount ?? x.unit_price * x.qty);
+    const total = (rows || []).reduce((s, x) => s + amt(x), 0);
     const lines = [["상품코드","품명","업체","단가","수량","금액","구매일"].join(",")]
-      .concat((rows || []).map(x => [x.code, x.name, x.vendor, x.unit_price, x.qty, (x.amount ?? x.unit_price * x.qty), (x.purchased_at || "").slice(0,10)].map(q).join(",")));
+      .concat((rows || []).map(x => [x.code, x.name, x.vendor, x.unit_price, x.qty, amt(x), (x.purchased_at || "").slice(0,10)].map(q).join(",")))
+      .concat([["합계","","","","",total,""].map(q).join(",")]);   // 마지막 줄 합계
     const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = `${name || "export"}.csv`; a.click();
