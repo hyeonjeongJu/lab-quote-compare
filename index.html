@@ -48,7 +48,7 @@
   td.num{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
   .raw{color:var(--sub);font-weight:400;}                          /* 공급가(부가세포함가 옆) */
   /* on/off 스위치(네이티브 체크박스 + CSS) */
-  .switch{position:relative;display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--sub);cursor:pointer;user-select:none;}
+  .switch{position:relative;display:inline-flex;flex-direction:row;align-items:center;gap:7px;font-size:13px;color:var(--sub);cursor:pointer;user-select:none;}
   .switch input{position:absolute;opacity:0;width:0;height:0;}
   .switch .track{width:34px;height:20px;border-radius:99px;background:var(--line);transition:background .15s;flex:none;position:relative;}
   .switch .track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.3);}
@@ -232,6 +232,19 @@
     </div>
   </form>
 </dialog>
+<dialog id="csvDlg">
+  <form method="dialog">
+    <h3>⬇ CSV 내려받기</h3>
+    <label>기간 시작 <input id="csvFrom" type="date"></label>
+    <label>기간 끝 <input id="csvTo" type="date"></label>
+    <label class="switch"><input type="checkbox" id="csvPretaxToggle"><span class="track"></span> 공급가 표기(부가세 미포함 컬럼 포함)</label>
+    <p class="dlg-hint">구매일 기준으로 필터링돼요. 비워두면 전체 기간. 많으면 1,000건씩 나눠 받아요.</p>
+    <div class="dlg-actions">
+      <button value="cancel" class="ghost" type="submit">취소</button>
+      <button value="ok" type="submit">다운로드</button>
+    </div>
+  </form>
+</dialog>
 
 <script type="module">
   const $ = s => document.querySelector(s);
@@ -245,7 +258,8 @@
     set: (k, v) => { try { localStorage.setItem(k, v ? "1" : "0"); } catch {} },
   };
   let showSupply = LS.get("lqc.supply.compare", false);        // 견적비교: 공급가(부가세 미포함) 컬럼 표시
-  let showPretax = LS.get("lqc.pretax.purchases", false);      // 구매내역: 부가세 미포함 단가/금액 컬럼 표시
+  let showPretax = LS.get("lqc.pretax.purchases", false);      // 구매내역: 부가세 미포함 단가/금액 컬럼 표시(화면)
+  let csvPretax = LS.get("lqc.pretax.csv", false);             // CSV 다운로드: 공급가 컬럼 포함(모달)
   let hideExpired = LS.get("lqc.hideExpired.compare", false);  // 견적비교: 만료된 견적 숨기기
   const attr = s => String(s ?? "").replace(/"/g, "&quot;");   // data-full 속성 안전
 
@@ -553,7 +567,7 @@
       <div class="toolbar">
         <span class="count">${countHtml(selCount)}</span>
         <label class="switch" style="margin-left:auto"><input type="checkbox" id="pretaxToggle"${pre ? " checked" : ""}><span class="track"></span> 공급가 표기</label>
-        <button class="ghost" id="csvBtn">⬇ CSV 내려받기${selCount ? ` (${selCount}건)` : ""}</button>
+        <button class="ghost" id="csvBtn">⬇ CSV 내려받기</button>
       </div>
       ${manualRow}
       ${tableBlock}`;
@@ -566,15 +580,11 @@
       renderPurchases();
     });
     $("#pretaxToggle").onchange = e => { showPretax = e.target.checked; LS.set("lqc.pretax.purchases", showPretax); renderPurchases(); };
-    $("#csvBtn").onclick = () => {
-      const sel = view.filter(r => selectedIds.has(String(r.id)));
-      csvDownload(sel.length ? sel : view, "구매내역_" + today, showPretax);   // 선택분(없으면 전체 화면분), 스위치 켜면 미포함가 컬럼도
-    };
+    $("#csvBtn").onclick = () => openCsvDlg();   // 기간/양식 모달 → 배치 다운로드
     const ac = $("#allChk");
     const refreshSel = () => {   // 체크 변경 시 표 재렌더 없이 라벨·전체선택만 갱신
       const n = visIds.filter(id => selectedIds.has(id)).length;
       const cnt = $("#pout .count"); if (cnt) cnt.innerHTML = countHtml(n);
-      $("#csvBtn").textContent = `⬇ CSV 내려받기${n ? ` (${n}건)` : ""}`;
       if (ac) ac.checked = visIds.length > 0 && n === visIds.length;
     };
     if (ac) ac.onchange = () => {
@@ -672,6 +682,35 @@
     a.href = URL.createObjectURL(blob); a.download = `${name || "export"}.csv`; a.click();
     URL.revokeObjectURL(a.href);
   }
+
+  // CSV 다운로드 모달 — 구매일 기간 + 공급가 표기. 대량이면 1000건씩 배치로 받아 누적
+  const csvDlg = $("#csvDlg");
+  function openCsvDlg() {
+    $("#csvFrom").value = ""; $("#csvTo").value = today;
+    $("#csvPretaxToggle").checked = csvPretax;
+    csvDlg.showModal();
+  }
+  $("#csvPretaxToggle").onchange = e => { csvPretax = e.target.checked; LS.set("lqc.pretax.csv", csvPretax); };
+  csvDlg.addEventListener("close", async () => {
+    if (csvDlg.returnValue !== "ok") return;
+    const from = $("#csvFrom").value, to = $("#csvTo").value;
+    const all = []; const LIMIT = 1000;
+    try {
+      for (let offset = 0; ; offset += LIMIT) {
+        const qs = new URLSearchParams({ limit: LIMIT, offset });
+        if (from) qs.set("from", from);
+        if (to) qs.set("to", to);
+        const r = await fetch("/api/purchases?" + qs);
+        const { rows } = await r.json();
+        all.push(...(rows || []));
+        $("#status").textContent = `내려받는 중… ${all.length}건`;
+        if (!rows || rows.length < LIMIT) break;      // 마지막 배치
+      }
+    } catch (e) { $("#status").textContent = "CSV 오류: " + e.message; return; }
+    if (!all.length) { $("#status").textContent = "해당 기간에 구매 기록이 없어요."; return; }
+    csvDownload(all, `구매내역_${from || "전체"}~${to || today}`, csvPretax);
+    $("#status").textContent = `CSV ${all.length}건 내려받음`;
+  });
 
   loadComparison();
   loadPurchases();

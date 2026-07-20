@@ -1,4 +1,4 @@
-import { addPurchase, getPurchases, deletePurchase, vendorExists, updatePurchase } from "../lib/db.mjs";
+import { addPurchase, getPurchases, getPurchasesRange, deletePurchase, vendorExists, updatePurchase } from "../lib/db.mjs";
 
 export const config = { api: { bodyParser: false } };
 
@@ -10,6 +10,14 @@ const readJson = async req => {
 export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
+      const url = new URL(req.url, "http://x");
+      const from = url.searchParams.get("from"), to = url.searchParams.get("to");
+      if (from || to || url.searchParams.has("limit")) {   // CSV 배치 조회(기간+페이지네이션)
+        const limit = Math.min(2000, Math.max(1, Number(url.searchParams.get("limit")) || 1000));
+        const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
+        const rows = await getPurchasesRange(from || "0001-01-01", to || "9999-12-31", limit, offset);
+        return res.status(200).json({ rows });
+      }
       return res.status(200).json({ purchases: await getPurchases() });
     }
     if (req.method === "POST") {
