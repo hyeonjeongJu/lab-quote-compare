@@ -1,4 +1,4 @@
-import { addPurchase, getPurchases, deletePurchase, vendorExists, setDelivered } from "../lib/db.mjs";
+import { addPurchase, getPurchases, deletePurchase, vendorExists, updatePurchase } from "../lib/db.mjs";
 
 export const config = { api: { bodyParser: false } };
 
@@ -18,10 +18,11 @@ export default async function handler(req, res) {
       if (!(await vendorExists(b.vendor))) return res.status(422).json({ error: "등록되지 않은 업체예요 (업체 관리에서 확인)" });
       return res.status(200).json(await addPurchase(b));
     }
-    if (req.method === "PATCH") {                    // 납품일 기록/수정
+    if (req.method === "PATCH") {                    // 구매 수정(편집 가능한 값 전체)
       const b = await readJson(req);
-      if (!b.id) return res.status(422).json({ error: "id 필요" });
-      await setDelivered(b.id, b.deliveredAt || null);
+      if (!b.id || !b.code || !b.unitPrice || !b.purchasedAt) return res.status(422).json({ error: "id·code·unitPrice·purchasedAt 필요" });
+      if (!(await vendorExists(b.vendor))) return res.status(422).json({ error: "등록되지 않은 업체예요 (업체 관리에서 확인)" });
+      await updatePurchase(b);
       return res.status(200).json({ ok: true });
     }
     if (req.method === "DELETE") {

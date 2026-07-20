@@ -93,10 +93,6 @@
   th.srt:hover{color:var(--ink);}
   td.vcell{cursor:pointer;}
   td.vcell:hover{text-decoration:underline;}
-  button.deliv{background:var(--card);border:1px solid var(--line);border-radius:7px;color:var(--ink);font-size:12px;font-weight:400;padding:3px 9px;font-family:var(--mono);}
-  button.deliv.none{border-style:dashed;color:var(--sub);font-family:var(--sans);}
-  button.deliv:hover{border-color:var(--ink);opacity:1;}
-  input.deliv-inp{font-size:12px;padding:2px 5px;border:1px solid var(--ink);border-radius:6px;background:var(--card);color:var(--ink);font-family:var(--mono);}
   select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;max-width:60vw;}
   select.thsel{padding:0;border:0;background:transparent;color:var(--sub);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;max-width:100%;}
   select.thsel:hover{color:var(--ink);}
@@ -209,12 +205,28 @@
 <dialog id="buyDlg">
   <form method="dialog">
     <h3 id="buyTitle">구매 기록</h3>
-    <label>단가(포장당) <input id="buyPrice" type="number" min="0"></label>
+    <label>공급단가(포장당·부가세 미포함) <input id="buyPrice" type="number" min="0"></label>
     <label>수량 <input id="buyQty" type="number" min="1" value="1"></label>
     <label>구매일 <input id="buyDate" type="date"></label>
     <div class="dlg-actions">
       <button value="cancel" class="ghost" type="submit">취소</button>
       <button id="buyOk" value="ok" type="submit">기록</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="editDlg">
+  <form method="dialog">
+    <h3>✏️ 구매 수정</h3>
+    <label>상품코드 <input id="eCode"></label>
+    <label>품명 <input id="eName"></label>
+    <label>업체 <select id="eVendor"></select></label>
+    <label>공급단가(부가세 미포함) <input id="ePrice" type="number" min="0"></label>
+    <label>수량 <input id="eQty" type="number" min="1"></label>
+    <label>구매일 <input id="eDate" type="date"></label>
+    <label>납품일 <input id="eDeliv" type="date"></label>
+    <div class="dlg-actions">
+      <button value="cancel" class="ghost" type="submit">취소</button>
+      <button value="ok" type="submit">저장</button>
     </div>
   </form>
 </dialog>
@@ -511,7 +523,9 @@
       { w: 92, th: `<th class="srt" data-k="purchased_at">구매일${arr("purchased_at")}</th>`,
         cell: r => `<td class="dt">${(r.purchased_at || "").slice(0,10) || "-"}</td>` },
       { w: 82, th: `<th>납품일</th>`,
-        cell: r => `<td class="dt"><button class="deliv${r.delivered_at ? "" : " none"}" data-id="${r.id}" data-v="${(r.delivered_at || "").slice(0,10)}">${r.delivered_at ? r.delivered_at.slice(0,10) : "입력"}</button></td>` },
+        cell: r => `<td class="dt">${r.delivered_at ? r.delivered_at.slice(0,10) : "-"}</td>` },
+      { w: 74, th: `<th></th>`,   // 수기추가(manual)만 수정 가능 — 견적기반은 잠금
+        cell: r => `<td class="act">${r.manual ? `<button class="buy" data-edit="${r.id}" style="white-space:nowrap">수정</button>` : ""}</td>` },
       { w: 34, th: `<th></th>`,
         cell: r => `<td class="act"><button class="ghost" data-del="${r.id}" title="삭제">✕</button></td>` },
     ];
@@ -575,7 +589,7 @@
   // 수동 구매 추가 (표 위 인라인 한 줄) — 전 필드 필수
   async function addManual() {
     const body = { code: $("#mCode").value.trim(), name: $("#mName").value.trim(), vendor: $("#mVendor").value,
-      unitPrice: Number($("#mPrice").value), qty: Number($("#mQty").value), purchasedAt: $("#mDate").value };
+      unitPrice: Number($("#mPrice").value), qty: Number($("#mQty").value), purchasedAt: $("#mDate").value, manual: true };
     if (!body.code || !body.name || !body.vendor || !body.unitPrice || !body.qty || !body.purchasedAt) {
       $("#status").textContent = "모든 값을 입력하세요 (상품코드·품명·업체·단가·수량·구매일)."; return;
     }
@@ -595,32 +609,16 @@
   });
   dlg.addEventListener("close", async () => {
     if (dlg.returnValue !== "ok" || !buyCtx) return;
-    const body = { ...buyCtx, unitPrice: Number($("#buyPrice").value), qty: Number($("#buyQty").value) || 1, purchasedAt: $("#buyDate").value };
+    const body = { ...buyCtx, unitPrice: Number($("#buyPrice").value), qty: Number($("#buyQty").value) || 1, purchasedAt: $("#buyDate").value, manual: false };
     if (!body.unitPrice || !body.purchasedAt) return;
     await fetch("/api/purchases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     await loadPurchases();
   });
 
-  // 구매내역 탭: 납품일 인라인 입력 / 업체 셀 클릭=필터(재클릭 해제) / 구매 삭제(열린 사이클만)
+  // 구매내역 탭: 수정 버튼(수기추가만) / 업체 셀 클릭=필터(재클릭 해제) / 구매 삭제
   $("#pout").addEventListener("click", async e => {
-    const dv = e.target.closest(".deliv");
-    if (dv) {                                          // 클릭 자리에 실제 date 인풋을 심어 그 자리에 달력 표시
-      const id = dv.dataset.id, prev = dv.dataset.v || "";
-      const inp = document.createElement("input");
-      inp.type = "date"; inp.value = prev; inp.className = "deliv-inp";
-      dv.replaceWith(inp); inp.focus();
-      try { inp.showPicker(); } catch (_) {}
-      let done = false;
-      const commit = async () => {                     // 저장(변경시) 후 목록 재렌더 — 한 번만
-        if (done) return; done = true;
-        if (inp.value !== prev)
-          await fetch("/api/purchases", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, deliveredAt: inp.value }) });
-        await loadPurchases();                         // 반영/원복
-      };
-      inp.onchange = commit;                            // 날짜 고르면 저장
-      inp.onblur = () => setTimeout(commit, 150);       // 그냥 벗어나면 원복(change가 먼저 처리될 여유)
-      return;
-    }
+    const ed = e.target.closest("[data-edit]");
+    if (ed) { openEdit(ed.dataset.edit); return; }
     const vc = e.target.closest("[data-vf]");
     if (vc) { vendorFilter = vendorFilter === vc.dataset.vf ? "" : vc.dataset.vf; renderPurchases(); return; }
     const del = e.target.closest("[data-del]");
@@ -628,6 +626,26 @@
       await fetch("/api/purchases?id=" + del.dataset.del, { method: "DELETE" });
       await loadPurchases();
     }
+  });
+
+  // 구매 수정 모달 (수기추가 행만) — 상품코드·품명·업체·공급단가·수량·구매일·납품일
+  const editDlg = $("#editDlg"); let editId = null;
+  function openEdit(id) {
+    const r = pdata.purchases.rows.find(x => String(x.id) === String(id)); if (!r) return;
+    editId = id;
+    $("#eCode").value = r.code || ""; $("#eName").value = r.name || "";
+    $("#eVendor").innerHTML = vendorsList.map(v => `<option value="${attr(v.name)}"${v.name === r.vendor ? " selected" : ""}>${v.name}</option>`).join("");
+    $("#ePrice").value = r.unit_price; $("#eQty").value = r.qty;
+    $("#eDate").value = (r.purchased_at || "").slice(0,10); $("#eDeliv").value = (r.delivered_at || "").slice(0,10);
+    editDlg.showModal();
+  }
+  editDlg.addEventListener("close", async () => {
+    if (editDlg.returnValue !== "ok" || !editId) return;
+    const body = { id: editId, code: $("#eCode").value.trim(), name: $("#eName").value.trim(), vendor: $("#eVendor").value,
+      unitPrice: Number($("#ePrice").value), qty: Number($("#eQty").value) || 1, purchasedAt: $("#eDate").value, deliveredAt: $("#eDeliv").value || null };
+    if (!body.code || !body.vendor || !body.unitPrice || !body.purchasedAt) { $("#status").textContent = "상품코드·업체·공급단가·구매일을 확인하세요."; return; }
+    await fetch("/api/purchases", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    await loadPurchases();
   });
 
   // CSV 내보내기(엑셀에서 열림, BOM 포함). 기본=부가세포함가, 미포함 옵션 켜면 공급가 컬럼도 함께(각각 합계)

@@ -64,11 +64,13 @@ CREATE TABLE IF NOT EXISTS purchase (
   unit_price    INTEGER NOT NULL,             -- freeze 포장당 단가
   qty           INTEGER NOT NULL DEFAULT 1,
   purchased_at  DATE NOT NULL,
-  delivered_at  DATE,                         -- 납품일(추후 줄마다 직접 기록)
+  delivered_at  DATE,                         -- 납품일
+  manual        BOOLEAN NOT NULL DEFAULT true, -- 수기추가=true(수정 가능) / 견적기반 구매=false(잠금)
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-ALTER TABLE purchase ADD COLUMN IF NOT EXISTS delivered_at DATE;   -- 기존 DB 보강
+ALTER TABLE purchase ADD COLUMN IF NOT EXISTS delivered_at DATE;                         -- 기존 DB 보강
+ALTER TABLE purchase ADD COLUMN IF NOT EXISTS manual BOOLEAN NOT NULL DEFAULT true;      -- 기존 행은 수정 가능(수기 취급)
 
 -- 정산 기록(외상장부 credit) — 업체별 갚은 금액. 구매줄과 링크하지 않음(미정산=구매합−정산합)
 CREATE TABLE IF NOT EXISTS settlement (
