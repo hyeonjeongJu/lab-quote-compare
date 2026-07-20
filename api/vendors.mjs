@@ -1,4 +1,5 @@
 import { getVendors, addVendor, deleteVendor } from "../lib/db.mjs";
+import { blockIfUnauthed } from "../lib/auth.mjs";
 
 export const config = { api: { bodyParser: false } };
 
@@ -9,6 +10,7 @@ const readJson = async req => {
 
 export default async function handler(req, res) {
   try {
+    if (blockIfUnauthed(req, res)) return;
     if (req.method === "GET") return res.status(200).json({ vendors: await getVendors() });
     if (req.method === "POST") {                    // 업체 추가 (수동구매 전용, 비활성)
       const b = await readJson(req);

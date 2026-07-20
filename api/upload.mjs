@@ -1,5 +1,6 @@
 import { parseQuote } from "../lib/parsers.mjs";
 import { saveQuote, isVendorActive } from "../lib/db.mjs";
+import { blockIfUnauthed } from "../lib/auth.mjs";
 
 // 프론트가 파일 원본을 raw body로 POST, 파일명은 ?name= 쿼리로 전달 (multipart 파싱 회피)
 export const config = { api: { bodyParser: false } };
@@ -7,6 +8,7 @@ export const config = { api: { bodyParser: false } };
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   try {
+    if (blockIfUnauthed(req, res)) return;
     const chunks = [];
     for await (const c of req) chunks.push(c);
     const buffer = Buffer.concat(chunks);

@@ -1,4 +1,5 @@
 import { addPurchase, getPurchases, getPurchasesRange, deletePurchase, vendorExists, updatePurchase } from "../lib/db.mjs";
+import { blockIfUnauthed } from "../lib/auth.mjs";
 
 export const config = { api: { bodyParser: false } };
 
@@ -9,6 +10,7 @@ const readJson = async req => {
 
 export default async function handler(req, res) {
   try {
+    if (blockIfUnauthed(req, res)) return;
     if (req.method === "GET") {
       const url = new URL(req.url, "http://x");
       const from = url.searchParams.get("from"), to = url.searchParams.get("to"), vendor = url.searchParams.get("vendor");

@@ -1,3 +1,11 @@
+-- 사용자(로그인) — 회원가입 없음. 관리자가 아이디+기본비번(0000 해시)로 심고, 사용자가 비번 변경
+CREATE TABLE IF NOT EXISTS app_user (
+  id         TEXT PRIMARY KEY,               -- 로그인 아이디
+  pw_hash    TEXT NOT NULL,                  -- SHA-256(비밀번호)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- 업체 마스터 (통제 목록) — 업로드 라디오·수동입력 셀렉트 소스
 CREATE TABLE IF NOT EXISTS vendor (
   id         SERIAL PRIMARY KEY,

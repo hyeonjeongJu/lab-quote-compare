@@ -1,4 +1,5 @@
 import { addSettlement, getSettlements, deleteSettlement } from "../lib/db.mjs";
+import { blockIfUnauthed } from "../lib/auth.mjs";
 
 export const config = { api: { bodyParser: false } };
 
@@ -9,6 +10,7 @@ const readJson = async req => {
 
 export default async function handler(req, res) {
   try {
+    if (blockIfUnauthed(req, res)) return;
     if (req.method === "GET") return res.status(200).json({ settlements: await getSettlements() });
     if (req.method === "POST") {                    // 정산 추가
       const b = await readJson(req);
