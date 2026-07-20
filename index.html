@@ -47,7 +47,14 @@
   th{color:var(--sub);font-weight:600;font-size:12px;}
   td.num{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
   .raw{color:var(--sub);font-weight:400;}                          /* 공급가(부가세포함가 옆) */
-  td.num .raw{margin-right:3px;}
+  /* on/off 스위치(네이티브 체크박스 + CSS) */
+  .switch{position:relative;display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--sub);cursor:pointer;user-select:none;}
+  .switch input{position:absolute;opacity:0;width:0;height:0;}
+  .switch .track{width:34px;height:20px;border-radius:99px;background:var(--line);transition:background .15s;flex:none;position:relative;}
+  .switch .track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.3);}
+  .switch input:checked + .track{background:var(--best);}
+  .switch input:checked + .track::after{transform:translateX(14px);}
+  .switch input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px;}
   td.dt{white-space:nowrap;}
   tr.best{background:var(--best-bg);}
   tr.best td.unit{color:var(--best);font-weight:700;}
@@ -157,6 +164,7 @@
   <section id="tab-compare">
     <div class="toolbar">
       <span class="count" id="count"></span>
+      <label class="switch"><input type="checkbox" id="supplyToggle"><span class="track"></span> 공급가(부가세 미포함) 함께</label>
       <label class="chk"><input type="checkbox" id="hideExpired"> 만료된 견적 숨기기</label>
     </div>
     <div id="out"><p class="muted">불러오는 중…</p></div>
@@ -216,8 +224,14 @@
   const won = n => (n == null ? "-" : Number(n).toLocaleString() + "원");
   const VAT = 1.1;                                              // 부가세 10%(고정) — 필드 아닌 상수
   const vat = n => n == null ? null : Math.round(Number(n) * VAT);
-  const wonPair = n => n == null ? "-" : `<span class="raw">${Number(n).toLocaleString()}</span> <b>${vat(n).toLocaleString()}</b>`;  // 공급가 + 부가세포함
   const today = new Date().toISOString().slice(0, 10);
+  // 토글 상태 localStorage 저장(탭별 독립 키). "1"/"0"
+  const LS = {
+    get: (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v === "1"; } catch { return d; } },
+    set: (k, v) => { try { localStorage.setItem(k, v ? "1" : "0"); } catch {} },
+  };
+  let showSupply = LS.get("lqc.supply.compare", false);        // 견적비교: 공급가(부가세 미포함) 컬럼 표시
+  let showPretax = LS.get("lqc.pretax.purchases", false);      // 구매내역: 부가세 미포함 단가/금액 컬럼 표시
   const attr = s => String(s ?? "").replace(/"/g, "&quot;");   // data-full 속성 안전
 
   // 커스텀 툴팁: .ell 셀이 잘렸을 때(넘칠 때)만 커서 옆에 까만 말풍선
@@ -281,6 +295,8 @@
   }
 
   $("#hideExpired").onchange = render;
+  $("#supplyToggle").checked = showSupply;
+  $("#supplyToggle").onchange = e => { showSupply = e.target.checked; LS.set("lqc.supply.compare", showSupply); render(); };
 
   function render() {
     const out = $("#out");
@@ -295,6 +311,18 @@
     const groups = {};
     for (const row of rows) (groups[row.code] ||= { code: row.code, name: row.name, spec: row.spec, unit: row.spec_unit, rows: [] }).rows.push(row);
 
+    const sup = showSupply;   // 공급가(부가세 미포함) 컬럼 표시 여부
+    const priceTh = sup
+      ? `<th style="text-align:right">가격 <span class="muted" style="font-weight:400">공급</span></th><th style="text-align:right">부가세포함가격</th>`
+      : `<th style="text-align:right">부가세포함가격</th>`;
+    const priceCells = r => sup
+      ? `<td class="num">${won(r.price)}</td><td class="num"><b>${won(vat(r.price))}</b></td>`
+      : `<td class="num"><b>${won(vat(r.price))}</b></td>`;
+    const cg = sup
+      ? `<col style="width:15%"><col style="width:11%"><col style="width:14%"><col style="width:15%"><col style="width:13%"><col style="width:11%"><col style="width:11%"><col style="width:10%">`
+      : `<col style="width:18%"><col style="width:12%"><col style="width:16%"><col style="width:15%"><col style="width:12%"><col style="width:17%"><col style="width:10%">`;
+    const minW = sup ? 800 : 700;
+
     out.innerHTML = Object.values(groups).map(g => {
       // 최저 단위가(없으면 최저 총액)로 best 판정
       const hasUnit = g.rows.some(r => r.unit_price != null);
@@ -307,7 +335,7 @@
         return `<tr class="${isBest ? "best" : ""}${exp ? " cut" : ""}">
           <td class="ell" data-full="${attr(r.vendor)}">${isBest ? '<span class="crown">🏆</span> ' : ""}${r.vendor || "?"}</td>
           <td class="muted ell" data-full="${attr(r.manufacturer)}">${r.manufacturer || ""}</td>
-          <td class="num">${wonPair(r.price)}</td>
+          ${priceCells(r)}
           <td class="num unit">${r.unit_price != null ? Number(r.unit_price).toLocaleString() + "원/" + r.spec_unit : '<span class="muted">규격?</span>'}</td>
           <td class="dt">${r.expiration_date ? r.expiration_date.slice(0,10) : "-"}</td>
           <td class="muted ell" data-full="${attr(r.memo)}">${r.memo || ""}</td>
@@ -316,9 +344,9 @@
       }).join("");
       return `<div class="prod">
         <div class="prod-h"><span class="code">${g.code}</span> · <span class="nm">${g.name || ""}${g.spec ? " ("+g.spec+")" : ""}</span></div>
-        <div class="tw"><table style="min-width:720px">
-        <colgroup><col style="width:17%"><col style="width:12%"><col style="width:22%"><col style="width:14%"><col style="width:12%"><col style="width:13%"><col style="width:10%"></colgroup>
-        <thead><tr><th>업체</th><th>제조사</th><th style="text-align:right">가격 <span class="muted">공급·+VAT</span></th><th style="text-align:right">단위당</th><th>만료일</th><th>비고</th><th style="text-align:center">구매</th></tr></thead>
+        <div class="tw"><table style="min-width:${minW}px">
+        <colgroup>${cg}</colgroup>
+        <thead><tr><th>업체</th><th>제조사</th>${priceTh}<th style="text-align:right">단위당</th><th>만료일</th><th>비고</th><th style="text-align:center">구매</th></tr></thead>
         <tbody>${body}</tbody></table></div>
       </div>`;
     }).join("");
@@ -459,44 +487,49 @@
     const selCount = visIds.filter(id => selectedIds.has(id)).length;
     const arr = k => sortKey === k ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
-    const body = view.map(r => `<tr>
-      <td class="chk"><input type="checkbox" class="rowchk" data-id="${r.id}"${selectedIds.has(String(r.id)) ? " checked" : ""}></td>
-      <td class="ell" data-full="${attr(r.code + " " + (r.name || ""))}"><b>${r.code}</b> ${r.name || ""}</td>
-      <td class="ell vcell" data-full="${attr(r.vendor)}" data-vf="${attr(r.vendor)}" title="이 업체만 보기">${r.vendor || ""}</td>
-      <td class="num">${wonPair(r.unit_price)}</td>
-      <td class="num">${r.qty}</td>
-      <td class="num">${wonPair(amt(r))}</td>
-      <td class="dt">${(r.purchased_at || "").slice(0,10) || "-"}</td>
-      <td class="dt"><button class="deliv${r.delivered_at ? "" : " none"}" data-id="${r.id}" data-v="${(r.delivered_at || "").slice(0,10)}">${r.delivered_at ? r.delivered_at.slice(0,10) : "입력"}</button></td>
-      <td class="act"><button class="ghost" data-del="${r.id}" title="삭제">✕</button></td>
-    </tr>`).join("");
-    const cols = `<col style="width:4%"><col style="width:18%"><col style="width:11%"><col style="width:19%"><col style="width:5%"><col style="width:19%"><col style="width:10%"><col style="width:10%"><col style="width:4%">`;
-    const th = `<thead><tr>
-        <th class="chk"><input type="checkbox" id="allChk" title="전체 선택"></th>
-        <th>상품</th>
-        <th><select id="vendorFilter" class="thsel"><option value="">업체 (전체)</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select></th>
-        <th class="srt" data-k="unit_price" style="text-align:right">단가${arr("unit_price")}</th>
-        <th class="srt" data-k="qty" style="text-align:right">수량${arr("qty")}</th>
-        <th class="srt" data-k="amount" style="text-align:right">금액${arr("amount")}</th>
-        <th class="srt" data-k="purchased_at">구매일${arr("purchased_at")}</th>
-        <th>납품일</th><th></th></tr></thead>`;
-    const tableBlock = all.length ? `<div class="tw"><table style="min-width:880px"><colgroup>${cols}</colgroup>${th}<tbody>${body}</tbody></table></div>`
+    const pre = showPretax;   // 부가세 미포함(공급가) 단가/금액 컬럼 표시 여부
+    const numTh = (label, k) => k ? `<th class="srt" data-k="${k}" style="text-align:right">${label}${arr(k)}</th>` : `<th style="text-align:right">${label}</th>`;
+    // 컬럼 정의(px 폭) — pre=true면 미포함 단가/금액 컬럼이 각 부가세포함 컬럼 앞에 추가
+    const C = [
+      { w: 34, th: `<th class="chk"><input type="checkbox" id="allChk" title="전체 선택"></th>`,
+        cell: r => `<td class="chk"><input type="checkbox" class="rowchk" data-id="${r.id}"${selectedIds.has(String(r.id)) ? " checked" : ""}></td>` },
+      { w: 150, th: `<th>상품</th>`,
+        cell: r => `<td class="ell" data-full="${attr(r.code + " " + (r.name || ""))}"><b>${r.code}</b> ${r.name || ""}</td>` },
+      { w: 96, th: `<th><select id="vendorFilter" class="thsel"><option value="">업체 (전체)</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select></th>`,
+        cell: r => `<td class="ell vcell" data-full="${attr(r.vendor)}" data-vf="${attr(r.vendor)}" title="이 업체만 보기">${r.vendor || ""}</td>` },
+      ...(pre ? [{ w: 106, th: numTh("단가"), cell: r => `<td class="num raw">${won(r.unit_price)}</td>` }] : []),
+      { w: 124, th: numTh("부가세포함 단가", "unit_price"), cell: r => `<td class="num">${won(vat(r.unit_price))}</td>` },
+      { w: 44, th: numTh("수량", "qty"), cell: r => `<td class="num">${r.qty}</td>` },
+      ...(pre ? [{ w: 106, th: numTh("금액"), cell: r => `<td class="num raw">${won(amt(r))}</td>` }] : []),
+      { w: 124, th: numTh("부가세포함 금액", "amount"), cell: r => `<td class="num">${won(vat(amt(r)))}</td>` },
+      { w: 92, th: `<th class="srt" data-k="purchased_at">구매일${arr("purchased_at")}</th>`,
+        cell: r => `<td class="dt">${(r.purchased_at || "").slice(0,10) || "-"}</td>` },
+      { w: 82, th: `<th>납품일</th>`,
+        cell: r => `<td class="dt"><button class="deliv${r.delivered_at ? "" : " none"}" data-id="${r.id}" data-v="${(r.delivered_at || "").slice(0,10)}">${r.delivered_at ? r.delivered_at.slice(0,10) : "입력"}</button></td>` },
+      { w: 34, th: `<th></th>`,
+        cell: r => `<td class="act"><button class="ghost" data-del="${r.id}" title="삭제">✕</button></td>` },
+    ];
+    const colW = C.reduce((s, c) => s + c.w, 0);
+    const cols = C.map(c => `<col style="width:${c.w}px">`).join("");
+    const th = `<thead><tr>${C.map(c => c.th).join("")}</tr></thead>`;
+    const body = view.map(r => `<tr>${C.map(c => c.cell(r)).join("")}</tr>`).join("");
+    const tableBlock = all.length ? `<div class="tw"><table style="min-width:${colW}px"><colgroup>${cols}</colgroup>${th}<tbody>${body}</tbody></table></div>`
       : `<p class="muted">구매 기록이 없어요. 견적 비교 탭의 [구매] 또는 아래 수동 추가로 담아보세요.</p>`;
     const vopts = vendorsList.map(v => `<option value="${attr(v.name)}"${v.name === "비티비(동인)" ? " selected" : ""}>${v.name}</option>`).join("");
     const manualRow = `<div class="manual-add">
         <input id="mCode" placeholder="상품코드" style="flex:1 1 100px">
         <input id="mName" placeholder="품명" style="flex:1 1 100px">
         <select id="mVendor">${vopts}</select>
-        <input id="mPrice" type="number" min="0" placeholder="단가" style="width:88px">
+        <input id="mPrice" type="number" min="0" placeholder="단가(부가세 미포함)" style="width:130px">
         <input id="mQty" type="number" min="1" value="1" placeholder="수량" style="width:60px">
         <input id="mDate" type="date" value="${today}">
         <button id="mAdd">추가</button>
       </div>`;
-    const countHtml = n => `${view.length}건 · 합계 <span class="raw">${won(total)}</span> <b>${won(vat(total))}</b>${n ? ` · <b>${n}건 선택</b>` : ""}`;
+    const countHtml = n => `${view.length}건 · 합계 ${pre ? `<span class="raw">${won(total)}</span> ` : ""}<b>${won(vat(total))}</b>${n ? ` · <b>${n}건 선택</b>` : ""}`;
     $("#pout").innerHTML = `
       <div class="toolbar">
         <span class="count">${countHtml(selCount)}</span>
-        <label class="chk" style="margin-left:auto"><input type="checkbox" id="csvGosi"> 고시가 함께</label>
+        <label class="switch" style="margin-left:auto"><input type="checkbox" id="pretaxToggle"${pre ? " checked" : ""}><span class="track"></span> 부가세 미포함가 함께</label>
         <button class="ghost" id="csvBtn">⬇ CSV 내려받기${selCount ? ` (${selCount}건)` : ""}</button>
       </div>
       ${manualRow}
@@ -509,9 +542,10 @@
       else { sortKey = k; sortDir = k === "purchased_at" ? "desc" : "asc"; }
       renderPurchases();
     });
+    $("#pretaxToggle").onchange = e => { showPretax = e.target.checked; LS.set("lqc.pretax.purchases", showPretax); renderPurchases(); };
     $("#csvBtn").onclick = () => {
       const sel = view.filter(r => selectedIds.has(String(r.id)));
-      csvDownload(sel.length ? sel : view, "구매내역_" + today, $("#csvGosi").checked);   // 선택분(없으면 전체 화면분)
+      csvDownload(sel.length ? sel : view, "구매내역_" + today, showPretax);   // 선택분(없으면 전체 화면분), 스위치 켜면 미포함가 컬럼도
     };
     const ac = $("#allChk");
     const refreshSel = () => {   // 체크 변경 시 표 재렌더 없이 라벨·전체선택만 갱신
@@ -590,21 +624,21 @@
     }
   });
 
-  // CSV 내보내기(엑셀에서 열림, BOM 포함). 기본=부가세포함가, 고시가 옵션 켜면 공급가 컬럼도 함께(각각 합계)
-  function csvDownload(rows, name, withGosi) {
+  // CSV 내보내기(엑셀에서 열림, BOM 포함). 기본=부가세포함가, 미포함 옵션 켜면 공급가 컬럼도 함께(각각 합계)
+  function csvDownload(rows, name, withPretax) {
     const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const amt = x => Number(x.amount ?? x.unit_price * x.qty);
     const dt = x => [(x.purchased_at || "").slice(0,10), (x.delivered_at || "").slice(0,10)];
     const rawTot = (rows || []).reduce((s, x) => s + amt(x), 0);
-    const head = withGosi
-      ? ["상품코드","품명","업체","공급단가","단가(+VAT)","수량","공급금액","금액(+VAT)","구매일","납품일"]
-      : ["상품코드","품명","업체","단가(+VAT)","수량","금액(+VAT)","구매일","납품일"];
-    const line = x => (withGosi
+    const head = withPretax
+      ? ["상품코드","품명","업체","단가","부가세포함 단가","수량","금액","부가세포함 금액","구매일","납품일"]
+      : ["상품코드","품명","업체","부가세포함 단가","수량","부가세포함 금액","구매일","납품일"];
+    const line = x => (withPretax
       ? [x.code, x.name, x.vendor, x.unit_price, vat(x.unit_price), x.qty, amt(x), vat(amt(x)), ...dt(x)]
       : [x.code, x.name, x.vendor, vat(x.unit_price), x.qty, vat(amt(x)), ...dt(x)]).map(q).join(",");
-    const sumRow = (withGosi
+    const sumRow = (withPretax
       ? ["합계","","","","","", rawTot, vat(rawTot), "", ""]
-      : ["합계","","", "", "", vat(rawTot), "", ""]).map(q).join(",");
+      : ["합계","","","", "", vat(rawTot), "", ""]).map(q).join(",");
     const lines = [head.join(",")].concat((rows || []).map(line)).concat([sumRow]);
     const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
