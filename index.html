@@ -684,8 +684,8 @@
         $("#status").textContent = `내려받는 중… ${all.length}건`;
         if (!rows || rows.length < LIMIT) break;      // 마지막 배치
       }
-    } catch (e) { $("#status").textContent = "CSV 오류: " + e.message; return; }
-    if (!all.length) { $("#status").textContent = "조건에 맞는 구매 기록이 없어요."; return; }
+    } catch (e) { alert("CSV 오류: " + e.message); return; }
+    if (!all.length) { alert("조건에 맞는 구매 기록이 없어요."); return; }
     csvDownload(all, `구매내역_${vendor || "전체"}_${from || "전체"}~${to || today}`, csvPretax);
     $("#status").textContent = `CSV ${all.length}건 내려받음`;
   });
