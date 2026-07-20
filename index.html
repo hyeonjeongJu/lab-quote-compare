@@ -113,6 +113,7 @@
   .dlg-hint{font-size:12px;color:var(--sub);line-height:1.55;margin:0;padding:8px 10px;background:var(--bg);border-radius:8px;}
   /* 로그인 오버레이 / 계정 바 */
   .login-overlay{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px;}
+  .login-overlay[hidden]{display:none;}   /* hidden 속성이 display:flex 이기게 */
   .login-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px;width:100%;max-width:320px;display:flex;flex-direction:column;gap:14px;}
   .login-card h2{margin:0 0 2px;font-size:20px;}
   .login-card label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--sub);}
