@@ -745,7 +745,9 @@
     const r = await fetch("/api/login", { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: $("#loginId").value.trim(), password: $("#loginPw").value }) });
     if (!r.ok) { $("#loginErr").textContent = (await r.json()).error || "로그인 실패"; return; }
-    location.reload();
+    const { id } = await r.json();
+    $("#loginPw").value = "";
+    showApp(id);                       // 리로드 없이 오버레이 숨기고 앱 로드
   });
   $("#logoutBtn").onclick = async () => { await fetch("/api/logout", { method: "POST" }); location.reload(); };
   const pwDlg = $("#pwDlg");

@@ -22,7 +22,7 @@ export default async function handler(req, res) {
       const u = await getUser(id);
       if (!u || !verifyPw(b.password, u.pw_hash))             // 어느 쪽이 틀렸는지 노출 안 함
         return res.status(401).json({ error: "아이디 또는 비밀번호가 틀려요" });
-      setAuthCookie(res, u.id);
+      setAuthCookie(res, req, u.id);
       return res.status(200).json({ ok: true, id: u.id });
     }
     res.status(405).json({ error: "GET/POST only" });
