@@ -10,6 +10,7 @@ const readJson = async req => {
 
 export default async function handler(req, res) {
   try {
+    res.setHeader("Cache-Control", "no-store");   // 인증 상태는 절대 캐시 금지
     if (req.method === "GET") {              // 현재 로그인 상태(누구인지)
       const id = getAuthUser(req);
       if (!id) return res.status(401).json({ error: "로그인이 필요해요" });
