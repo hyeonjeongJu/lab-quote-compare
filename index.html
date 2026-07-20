@@ -85,6 +85,7 @@
   button.deliv{background:var(--card);border:1px solid var(--line);border-radius:7px;color:var(--ink);font-size:12px;font-weight:400;padding:3px 9px;font-family:var(--mono);}
   button.deliv.none{border-style:dashed;color:var(--sub);font-family:var(--sans);}
   button.deliv:hover{border-color:var(--ink);opacity:1;}
+  input.deliv-inp{font-size:12px;padding:2px 5px;border:1px solid var(--ink);border-radius:6px;background:var(--card);color:var(--ink);font-family:var(--mono);}
   select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;max-width:60vw;}
   select.thsel{padding:0;border:0;background:transparent;color:var(--sub);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;max-width:100%;}
   select.thsel:hover{color:var(--ink);}
@@ -165,7 +166,6 @@
   </section>
 </div>
 <div id="tip"></div>
-<input type="date" id="delivPick" style="position:fixed;left:-9999px;top:0;">
 <dialog id="upDlg">
   <form method="dialog">
     <h3>📎 견적서 업로드</h3>
@@ -500,19 +500,26 @@
     await loadPurchases();
   });
 
-  // 납품일 입력 — 공유 date picker
-  const delivPick = $("#delivPick"); let delivId = null;
-  delivPick.onchange = async () => {
-    if (!delivId) return;
-    await fetch("/api/purchases", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: delivId, deliveredAt: delivPick.value }) });
-    delivId = null;
-    await loadPurchases();
-  };
-
-  // 구매내역 탭: 납품일 입력 / 업체 셀 클릭=필터(재클릭 해제) / 구매 삭제(열린 사이클만)
+  // 구매내역 탭: 납품일 인라인 입력 / 업체 셀 클릭=필터(재클릭 해제) / 구매 삭제(열린 사이클만)
   $("#pout").addEventListener("click", async e => {
     const dv = e.target.closest(".deliv");
-    if (dv) { delivId = dv.dataset.id; delivPick.value = dv.dataset.v || ""; try { delivPick.showPicker(); } catch { delivPick.focus(); } return; }
+    if (dv) {                                          // 클릭 자리에 실제 date 인풋을 심어 그 자리에 달력 표시
+      const id = dv.dataset.id, prev = dv.dataset.v || "";
+      const inp = document.createElement("input");
+      inp.type = "date"; inp.value = prev; inp.className = "deliv-inp";
+      dv.replaceWith(inp); inp.focus();
+      try { inp.showPicker(); } catch (_) {}
+      let done = false;
+      const commit = async () => {                     // 저장(변경시) 후 목록 재렌더 — 한 번만
+        if (done) return; done = true;
+        if (inp.value !== prev)
+          await fetch("/api/purchases", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, deliveredAt: inp.value }) });
+        await loadPurchases();                         // 반영/원복
+      };
+      inp.onchange = commit;                            // 날짜 고르면 저장
+      inp.onblur = () => setTimeout(commit, 150);       // 그냥 벗어나면 원복(change가 먼저 처리될 여유)
+      return;
+    }
     const vc = e.target.closest("[data-vf]");
     if (vc) { vendorFilter = vendorFilter === vc.dataset.vf ? "" : vc.dataset.vf; renderPurchases(); return; }
     const del = e.target.closest("[data-del]");
