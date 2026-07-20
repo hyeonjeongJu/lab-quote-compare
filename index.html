@@ -500,7 +500,7 @@
     if (vendorFilter && !vendors.includes(vendorFilter)) vendorFilter = "";
     let view = vendorFilter ? all.filter(r => r.vendor === vendorFilter) : all.slice();
     // 정렬 (헤더 클릭: 단가/수량/금액/구매일)
-    const val = { unit_price: r => Number(r.unit_price), qty: r => Number(r.qty), amount: amt, purchased_at: r => (r.purchased_at || "") };
+    const val = { unit_price: r => Number(r.unit_price), qty: r => Number(r.qty), amount: amt, purchased_at: r => (r.purchased_at || ""), delivered_at: r => (r.delivered_at || "") };
     view.sort((a, b) => { const x = val[sortKey](a), y = val[sortKey](b); const c = x < y ? -1 : x > y ? 1 : 0; return sortDir === "asc" ? c : -c; });
     const total = view.reduce((s, r) => s + amt(r), 0);
     const visIds = view.map(r => String(r.id));
@@ -524,7 +524,7 @@
       { w: 124, th: numTh("구매금액", "amount"), cell: r => `<td class="num">${won(vat(amt(r)))}</td>` },
       { w: 92, th: `<th class="srt" data-k="purchased_at">구매일${arr("purchased_at")}</th>`,
         cell: r => `<td class="dt">${(r.purchased_at || "").slice(0,10) || "-"}</td>` },
-      { w: 82, th: `<th>납품일</th>`,
+      { w: 82, th: `<th class="srt" data-k="delivered_at">납품일${arr("delivered_at")}</th>`,
         cell: r => `<td class="dt">${r.delivered_at ? r.delivered_at.slice(0,10) : "-"}</td>` },
       { w: 74, th: `<th></th>`,   // 수기추가(manual)만 수정 가능 — 견적기반은 잠금
         cell: r => `<td class="act">${r.manual ? `<button class="buy" data-edit="${r.id}" style="white-space:nowrap">수정</button>` : ""}</td>` },
@@ -561,7 +561,7 @@
     $("#pout").querySelectorAll("th.srt").forEach(el => el.onclick = () => {
       const k = el.dataset.k;
       if (sortKey === k) sortDir = sortDir === "asc" ? "desc" : "asc";
-      else { sortKey = k; sortDir = k === "purchased_at" ? "desc" : "asc"; }
+      else { sortKey = k; sortDir = (k === "purchased_at" || k === "delivered_at") ? "desc" : "asc"; }
       renderPurchases();
     });
     $("#pretaxToggle").onchange = e => { showPretax = e.target.checked; LS.set("lqc.pretax.purchases", showPretax); renderPurchases(); };
