@@ -44,7 +44,7 @@
     box-shadow:0 6px 20px rgba(0,0,0,.28);pointer-events:none;opacity:0;transition:opacity .12s;
     white-space:normal;word-break:break-word;}
   #tip.show{opacity:1;}
-  th{color:var(--sub);font-weight:600;font-size:12px;}
+  th{color:var(--sub);font-weight:600;font-size:12px;text-align:center;}   /* 헤더는 전부 가운데 */
   td.num{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
   .raw{color:var(--sub);font-weight:400;}                          /* 공급가(부가세포함가 옆) */
   /* on/off 스위치(네이티브 체크박스 + CSS) */
@@ -164,7 +164,7 @@
   <section id="tab-compare">
     <div class="toolbar">
       <span class="count" id="count"></span>
-      <label class="switch"><input type="checkbox" id="supplyToggle"><span class="track"></span> 공급가(부가세 미포함) 함께</label>
+      <label class="switch"><input type="checkbox" id="supplyToggle"><span class="track"></span> 공급가 표기</label>
       <label class="switch"><input type="checkbox" id="hideExpired"><span class="track"></span> 만료된 견적 숨기기</label>
     </div>
     <div id="out"><p class="muted">불러오는 중…</p></div>
@@ -235,17 +235,21 @@
   let hideExpired = LS.get("lqc.hideExpired.compare", false);  // 견적비교: 만료된 견적 숨기기
   const attr = s => String(s ?? "").replace(/"/g, "&quot;");   // data-full 속성 안전
 
-  // 커스텀 툴팁: .ell 셀이 잘렸을 때(넘칠 때)만 커서 옆에 까만 말풍선
+  // 커스텀 툴팁: .ell 셀이 잘렸을 때(넘칠 때)만 커서 옆에 까만 말풍선 — 견적비교·구매내역·정산내역 공용
   const tip = $("#tip");
   const place = e => { tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px"; tip.style.top = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8) + "px"; };
-  $("#out").addEventListener("mouseover", e => {
-    const el = e.target.closest(".ell"); if (!el) return;
-    if (el.scrollWidth <= el.clientWidth) return;              // 안 잘렸으면 안 띄움
-    const full = el.dataset.full || ""; if (!full) return;
-    tip.textContent = full; tip.classList.add("show"); place(e);
-  });
-  $("#out").addEventListener("mousemove", e => { if (tip.classList.contains("show")) place(e); });
-  $("#out").addEventListener("mouseout", e => { if (e.target.closest(".ell")) tip.classList.remove("show"); });
+  const attachTip = sel => {
+    const host = $(sel);
+    host.addEventListener("mouseover", e => {
+      const el = e.target.closest(".ell"); if (!el) return;
+      if (el.scrollWidth <= el.clientWidth) return;            // 안 잘렸으면 안 띄움
+      const full = el.dataset.full || ""; if (!full) return;
+      tip.textContent = full; tip.classList.add("show"); place(e);
+    });
+    host.addEventListener("mousemove", e => { if (tip.classList.contains("show")) place(e); });
+    host.addEventListener("mouseout", e => { if (e.target.closest(".ell")) tip.classList.remove("show"); });
+  };
+  ["#out", "#pout", "#sout"].forEach(attachTip);
 
   async function uploadOne(file, vendor) {
     const r = await fetch("/api/upload?name=" + encodeURIComponent(file.name) + "&vendor=" + encodeURIComponent(vendor), {
@@ -315,8 +319,8 @@
 
     const sup = showSupply;   // 공급가(부가세 미포함) 컬럼 표시 여부
     const priceTh = sup
-      ? `<th style="text-align:right">가격 <span class="muted" style="font-weight:400">공급</span></th><th style="text-align:right">부가세포함가격</th>`
-      : `<th style="text-align:right">부가세포함가격</th>`;
+      ? `<th>공급가</th><th>구매가</th>`
+      : `<th>구매가</th>`;
     const priceCells = r => sup
       ? `<td class="num">${won(r.price)}</td><td class="num"><b>${won(vat(r.price))}</b></td>`
       : `<td class="num"><b>${won(vat(r.price))}</b></td>`;
@@ -348,7 +352,7 @@
         <div class="prod-h"><span class="code">${g.code}</span> · <span class="nm">${g.name || ""}${g.spec ? " ("+g.spec+")" : ""}</span></div>
         <div class="tw"><table style="min-width:${minW}px">
         <colgroup>${cg}</colgroup>
-        <thead><tr><th>업체</th><th>제조사</th>${priceTh}<th style="text-align:right">단위당</th><th>만료일</th><th>비고</th><th style="text-align:center">구매</th></tr></thead>
+        <thead><tr><th>업체</th><th>제조사</th>${priceTh}<th>단위당</th><th>만료일</th><th>비고</th><th>구매</th></tr></thead>
         <tbody>${body}</tbody></table></div>
       </div>`;
     }).join("");
@@ -444,7 +448,7 @@
       <div class="toolbar"><span class="count">${settlements.length}건 · 정산합계 <b>${won(total)}</b></span></div>
       <div class="tw"><table style="min-width:520px">
         <colgroup><col style="width:26%"><col style="width:22%"><col style="width:20%"><col style="width:24%"><col style="width:8%"></colgroup>
-        <thead><tr><th>업체</th><th style="text-align:right">정산금액</th><th>정산일</th><th>메모</th><th></th></tr></thead>
+        <thead><tr><th>업체</th><th>정산금액</th><th>정산일</th><th>메모</th><th></th></tr></thead>
         <tbody>${body}</tbody></table></div>`;
   }
 
@@ -490,7 +494,7 @@
     const arr = k => sortKey === k ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
     const pre = showPretax;   // 부가세 미포함(공급가) 단가/금액 컬럼 표시 여부
-    const numTh = (label, k) => k ? `<th class="srt" data-k="${k}" style="text-align:right">${label}${arr(k)}</th>` : `<th style="text-align:right">${label}</th>`;
+    const numTh = (label, k) => k ? `<th class="srt" data-k="${k}">${label}${arr(k)}</th>` : `<th>${label}</th>`;
     // 컬럼 정의(px 폭) — pre=true면 미포함 단가/금액 컬럼이 각 부가세포함 컬럼 앞에 추가
     const C = [
       { w: 34, th: `<th class="chk"><input type="checkbox" id="allChk" title="전체 선택"></th>`,
@@ -499,11 +503,11 @@
         cell: r => `<td class="ell" data-full="${attr(r.code + " " + (r.name || ""))}"><b>${r.code}</b> ${r.name || ""}</td>` },
       { w: 96, th: `<th><select id="vendorFilter" class="thsel"><option value="">업체 (전체)</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select></th>`,
         cell: r => `<td class="ell vcell" data-full="${attr(r.vendor)}" data-vf="${attr(r.vendor)}" title="이 업체만 보기">${r.vendor || ""}</td>` },
-      ...(pre ? [{ w: 106, th: numTh("단가"), cell: r => `<td class="num raw">${won(r.unit_price)}</td>` }] : []),
-      { w: 124, th: numTh("부가세포함 단가", "unit_price"), cell: r => `<td class="num">${won(vat(r.unit_price))}</td>` },
+      ...(pre ? [{ w: 106, th: numTh("공급단가"), cell: r => `<td class="num raw">${won(r.unit_price)}</td>` }] : []),
+      { w: 124, th: numTh("구매단가", "unit_price"), cell: r => `<td class="num">${won(vat(r.unit_price))}</td>` },
       { w: 44, th: numTh("수량", "qty"), cell: r => `<td class="num">${r.qty}</td>` },
-      ...(pre ? [{ w: 106, th: numTh("금액"), cell: r => `<td class="num raw">${won(amt(r))}</td>` }] : []),
-      { w: 124, th: numTh("부가세포함 금액", "amount"), cell: r => `<td class="num">${won(vat(amt(r)))}</td>` },
+      ...(pre ? [{ w: 106, th: numTh("공급금액"), cell: r => `<td class="num raw">${won(amt(r))}</td>` }] : []),
+      { w: 124, th: numTh("구매금액", "amount"), cell: r => `<td class="num">${won(vat(amt(r)))}</td>` },
       { w: 92, th: `<th class="srt" data-k="purchased_at">구매일${arr("purchased_at")}</th>`,
         cell: r => `<td class="dt">${(r.purchased_at || "").slice(0,10) || "-"}</td>` },
       { w: 82, th: `<th>납품일</th>`,
@@ -522,7 +526,7 @@
         <input id="mCode" placeholder="상품코드" style="flex:1 1 100px">
         <input id="mName" placeholder="품명" style="flex:1 1 100px">
         <select id="mVendor">${vopts}</select>
-        <input id="mPrice" type="number" min="0" placeholder="단가(부가세 미포함)" style="width:130px">
+        <input id="mPrice" type="number" min="0" placeholder="공급단가" style="width:100px">
         <input id="mQty" type="number" min="1" value="1" placeholder="수량" style="width:60px">
         <input id="mDate" type="date" value="${today}">
         <button id="mAdd">추가</button>
@@ -531,7 +535,7 @@
     $("#pout").innerHTML = `
       <div class="toolbar">
         <span class="count">${countHtml(selCount)}</span>
-        <label class="switch" style="margin-left:auto"><input type="checkbox" id="pretaxToggle"${pre ? " checked" : ""}><span class="track"></span> 부가세 미포함가 함께</label>
+        <label class="switch" style="margin-left:auto"><input type="checkbox" id="pretaxToggle"${pre ? " checked" : ""}><span class="track"></span> 공급가 표기</label>
         <button class="ghost" id="csvBtn">⬇ CSV 내려받기${selCount ? ` (${selCount}건)` : ""}</button>
       </div>
       ${manualRow}
@@ -633,8 +637,8 @@
     const dt = x => [(x.purchased_at || "").slice(0,10), (x.delivered_at || "").slice(0,10)];
     const rawTot = (rows || []).reduce((s, x) => s + amt(x), 0);
     const head = withPretax
-      ? ["상품코드","품명","업체","단가","부가세포함 단가","수량","금액","부가세포함 금액","구매일","납품일"]
-      : ["상품코드","품명","업체","부가세포함 단가","수량","부가세포함 금액","구매일","납품일"];
+      ? ["상품코드","품명","업체","공급단가","구매단가","수량","공급금액","구매금액","구매일","납품일"]
+      : ["상품코드","품명","업체","구매단가","수량","구매금액","구매일","납품일"];
     const line = x => (withPretax
       ? [x.code, x.name, x.vendor, x.unit_price, vat(x.unit_price), x.qty, amt(x), vat(amt(x)), ...dt(x)]
       : [x.code, x.name, x.vendor, vat(x.unit_price), x.qty, vat(amt(x)), ...dt(x)]).map(q).join(",");
