@@ -76,6 +76,8 @@
   button.buy{padding:4px 10px;font-size:12px;background:var(--near-black);color:var(--near-white);}
   @media (prefers-color-scheme: dark){ button.buy{background:var(--near-white);color:var(--near-black);} }
   td.act{text-align:center;}
+  td.chk,th.chk{text-align:center;padding-left:6px;padding-right:6px;}
+  .chk input{cursor:pointer;margin:0;}
   /* 구매내역 */
   .toolbar{flex-wrap:wrap;}
   th.srt{cursor:pointer;user-select:none;white-space:nowrap;}
@@ -340,6 +342,7 @@
   // ── 구매 ──
   const TARGET = 3000000;                    // 업체당 월 결제 한도(300만원)
   let sortKey = "purchased_at", sortDir = "desc", vendorFilter = "";   // 구매내역 정렬/필터 상태
+  let selectedIds = new Set();               // CSV용 선택된 구매 id
   let vendorsList = [];                      // 업체 마스터 (업로드 라디오·업체관리 공용)
   let pdata = { purchases: { rows: [], total: 0 } };
 
@@ -371,6 +374,8 @@
   function renderPurchases() {
     const all = pdata.purchases.rows;
     const amt = r => Number(r.amount ?? r.unit_price * r.qty);
+    const allIds = new Set(all.map(r => String(r.id)));
+    [...selectedIds].forEach(id => { if (!allIds.has(id)) selectedIds.delete(id); });   // 삭제된 구매 정리
 
     // 업체 필터
     const vendors = [...new Set(all.map(r => r.vendor).filter(Boolean))].sort();
@@ -380,9 +385,12 @@
     const val = { unit_price: r => Number(r.unit_price), qty: r => Number(r.qty), amount: amt, purchased_at: r => (r.purchased_at || "") };
     view.sort((a, b) => { const x = val[sortKey](a), y = val[sortKey](b); const c = x < y ? -1 : x > y ? 1 : 0; return sortDir === "asc" ? c : -c; });
     const total = view.reduce((s, r) => s + amt(r), 0);
+    const visIds = view.map(r => String(r.id));
+    const selCount = visIds.filter(id => selectedIds.has(id)).length;
     const arr = k => sortKey === k ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
     const body = view.map(r => `<tr>
+      <td class="chk"><input type="checkbox" class="rowchk" data-id="${r.id}"${selectedIds.has(String(r.id)) ? " checked" : ""}></td>
       <td class="ell" data-full="${attr(r.code + " " + (r.name || ""))}"><b>${r.code}</b> ${r.name || ""}</td>
       <td class="ell vcell" data-full="${attr(r.vendor)}" data-vf="${attr(r.vendor)}" title="이 업체만 보기">${r.vendor || ""}</td>
       <td class="num">${won(r.unit_price)}</td>
@@ -392,8 +400,9 @@
       <td class="dt"><button class="deliv${r.delivered_at ? "" : " none"}" data-id="${r.id}" data-v="${(r.delivered_at || "").slice(0,10)}">${r.delivered_at ? r.delivered_at.slice(0,10) : "입력"}</button></td>
       <td class="act"><button class="ghost" data-del="${r.id}" title="삭제">✕</button></td>
     </tr>`).join("");
-    const cols = `<col style="width:23%"><col style="width:15%"><col style="width:11%"><col style="width:7%"><col style="width:12%"><col style="width:12%"><col style="width:14%"><col style="width:6%">`;
+    const cols = `<col style="width:5%"><col style="width:21%"><col style="width:14%"><col style="width:10%"><col style="width:6%"><col style="width:12%"><col style="width:11%"><col style="width:13%"><col style="width:8%">`;
     const th = `<thead><tr>
+        <th class="chk"><input type="checkbox" id="allChk" title="전체 선택"></th>
         <th>상품</th>
         <th><select id="vendorFilter" class="thsel"><option value="">업체 (전체)</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select></th>
         <th class="srt" data-k="unit_price" style="text-align:right">단가${arr("unit_price")}</th>
@@ -401,7 +410,7 @@
         <th class="srt" data-k="amount" style="text-align:right">금액${arr("amount")}</th>
         <th class="srt" data-k="purchased_at">구매일${arr("purchased_at")}</th>
         <th>납품일</th><th></th></tr></thead>`;
-    const tableBlock = all.length ? `<div class="tw"><table style="min-width:720px"><colgroup>${cols}</colgroup>${th}<tbody>${body}</tbody></table></div>`
+    const tableBlock = all.length ? `<div class="tw"><table style="min-width:760px"><colgroup>${cols}</colgroup>${th}<tbody>${body}</tbody></table></div>`
       : `<p class="muted">구매 기록이 없어요. 견적 비교 탭의 [구매] 또는 아래 수동 추가로 담아보세요.</p>`;
     const vopts = vendorsList.map(v => `<option value="${attr(v.name)}"${v.name === "비티비(동인)" ? " selected" : ""}>${v.name}</option>`).join("");
     const manualRow = `<div class="manual-add">
@@ -415,8 +424,8 @@
       </div>`;
     $("#pout").innerHTML = `
       <div class="toolbar">
-        <span class="count">${view.length}건 · 합계 <b>${won(total)}</b></span>
-        <button class="ghost" id="csvBtn" style="margin-left:auto">⬇ CSV 내려받기</button>
+        <span class="count">${view.length}건 · 합계 <b>${won(total)}</b>${selCount ? ` · <b>${selCount}건 선택</b>` : ""}</span>
+        <button class="ghost" id="csvBtn" style="margin-left:auto">⬇ CSV 내려받기${selCount ? ` (${selCount}건)` : ""}</button>
       </div>
       ${manualRow}
       ${tableBlock}`;
@@ -428,7 +437,26 @@
       else { sortKey = k; sortDir = k === "purchased_at" ? "desc" : "asc"; }
       renderPurchases();
     });
-    $("#csvBtn").onclick = () => csvDownload(view, "구매내역_" + today);
+    $("#csvBtn").onclick = () => {
+      const sel = view.filter(r => selectedIds.has(String(r.id)));
+      csvDownload(sel.length ? sel : view, "구매내역_" + today);   // 선택분(없으면 전체 화면분)
+    };
+    const ac = $("#allChk");
+    const refreshSel = () => {   // 체크 변경 시 표 재렌더 없이 라벨·전체선택만 갱신
+      const n = visIds.filter(id => selectedIds.has(id)).length;
+      const cnt = $("#pout .count"); if (cnt) cnt.innerHTML = `${view.length}건 · 합계 <b>${won(total)}</b>${n ? ` · <b>${n}건 선택</b>` : ""}`;
+      $("#csvBtn").textContent = `⬇ CSV 내려받기${n ? ` (${n}건)` : ""}`;
+      if (ac) ac.checked = visIds.length > 0 && n === visIds.length;
+    };
+    if (ac) ac.onchange = () => {
+      visIds.forEach(id => ac.checked ? selectedIds.add(id) : selectedIds.delete(id));
+      $("#pout").querySelectorAll(".rowchk").forEach(c => c.checked = selectedIds.has(c.dataset.id));
+      refreshSel();
+    };
+    $("#pout").querySelectorAll(".rowchk").forEach(c => c.onchange = () => {
+      const id = c.dataset.id; c.checked ? selectedIds.add(id) : selectedIds.delete(id); refreshSel();
+    });
+    refreshSel();   // 초기 동기화(정렬·필터 후에도 선택 유지)
     const ma = $("#mAdd"); if (ma) ma.onclick = addManual;
   }
 
