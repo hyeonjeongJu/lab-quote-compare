@@ -165,7 +165,7 @@
     <div class="toolbar">
       <span class="count" id="count"></span>
       <label class="switch"><input type="checkbox" id="supplyToggle"><span class="track"></span> 공급가(부가세 미포함) 함께</label>
-      <label class="chk"><input type="checkbox" id="hideExpired"> 만료된 견적 숨기기</label>
+      <label class="switch"><input type="checkbox" id="hideExpired"><span class="track"></span> 만료된 견적 숨기기</label>
     </div>
     <div id="out"><p class="muted">불러오는 중…</p></div>
   </section>
@@ -232,6 +232,7 @@
   };
   let showSupply = LS.get("lqc.supply.compare", false);        // 견적비교: 공급가(부가세 미포함) 컬럼 표시
   let showPretax = LS.get("lqc.pretax.purchases", false);      // 구매내역: 부가세 미포함 단가/금액 컬럼 표시
+  let hideExpired = LS.get("lqc.hideExpired.compare", false);  // 견적비교: 만료된 견적 숨기기
   const attr = s => String(s ?? "").replace(/"/g, "&quot;");   // data-full 속성 안전
 
   // 커스텀 툴팁: .ell 셀이 잘렸을 때(넘칠 때)만 커서 옆에 까만 말풍선
@@ -294,7 +295,8 @@
     render();
   }
 
-  $("#hideExpired").onchange = render;
+  $("#hideExpired").checked = hideExpired;
+  $("#hideExpired").onchange = e => { hideExpired = e.target.checked; LS.set("lqc.hideExpired.compare", hideExpired); render(); };
   $("#supplyToggle").checked = showSupply;
   $("#supplyToggle").onchange = e => { showSupply = e.target.checked; LS.set("lqc.supply.compare", showSupply); render(); };
 
