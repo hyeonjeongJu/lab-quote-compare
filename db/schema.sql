@@ -70,8 +70,18 @@ CREATE TABLE IF NOT EXISTS purchase (
 );
 ALTER TABLE purchase ADD COLUMN IF NOT EXISTS delivered_at DATE;   -- 기존 DB 보강
 
--- 정산 기능 제거: 기존 DB의 settlement 및 purchase.settlement_id 정리
-DROP TABLE IF EXISTS settlement CASCADE;
+-- 정산 기록(외상장부 credit) — 업체별 갚은 금액. 구매줄과 링크하지 않음(미정산=구매합−정산합)
+CREATE TABLE IF NOT EXISTS settlement (
+  id         SERIAL PRIMARY KEY,
+  vendor     TEXT NOT NULL,
+  amount     INTEGER NOT NULL,             -- 정산(결제)한 금액
+  settled_at DATE NOT NULL,                -- 정산일
+  memo       TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_settlement_vendor ON settlement(vendor);
+-- 구(舊) 정산-구매 링크 잔재 정리(있으면)
 ALTER TABLE purchase DROP COLUMN IF EXISTS settlement_id;
 DROP INDEX IF EXISTS idx_purchase_settlement;
 
@@ -83,7 +93,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['vendor','product','quote','offer','purchase'] LOOP
+  FOREACH t IN ARRAY ARRAY['vendor','product','quote','offer','purchase','settlement'] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS trg_%1$s_updated ON %1$s', t);
     EXECUTE format('CREATE TRIGGER trg_%1$s_updated BEFORE UPDATE ON %1$s
                     FOR EACH ROW EXECUTE FUNCTION set_updated_at()', t);

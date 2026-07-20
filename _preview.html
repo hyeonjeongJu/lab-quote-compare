@@ -211,6 +211,21 @@
 
 <script type="module">
   const $ = s => document.querySelector(s);
+  window.fetch = async (u,opt) => {
+    const json = d => ({ ok:true, json: async()=>d });
+    if (u.startsWith("/api/comparison")) return json({rows:[]});
+    if (u.startsWith("/api/vendors")) return json({vendors:[
+      {id:1,name:"팜텍",active:true,builtin:true},{id:2,name:"비티비(동인)",active:true,builtin:true},{id:3,name:"삼보",active:false,builtin:true}]});
+    if (u.startsWith("/api/purchases")) return json({purchases:{rows:[
+      {id:1,code:"GTA-20",name:"Glutathione",vendor:"팜텍",unit_price:2740500,qty:1,amount:2740500,purchased_at:"2026-07-10",delivered_at:null},
+      {id:2,code:"NAC-50",name:"N-Acetyl",vendor:"비티비(동인)",unit_price:850000,qty:2,amount:1700000,purchased_at:"2026-07-05",delivered_at:"2026-07-12"},
+      {id:3,code:"EDT-1",name:"EDTA",vendor:"삼보",unit_price:120000,qty:1,amount:120000,purchased_at:"2026-06-30",delivered_at:null}],total:4560500}});
+    if (u.startsWith("/api/settlement")) return json({settlements:[
+      {id:1,vendor:"팜텍",amount:1000000,settled_at:"2026-07-15",memo:"부분정산"},
+      {id:2,vendor:"비티비(동인)",amount:1700000,settled_at:"2026-07-14",memo:null}]});
+    return json({});
+  };
+
   const won = n => (n == null ? "-" : Number(n).toLocaleString() + "원");
   const today = new Date().toISOString().slice(0, 10);
   const attr = s => String(s ?? "").replace(/"/g, "&quot;");   // data-full 속성 안전
