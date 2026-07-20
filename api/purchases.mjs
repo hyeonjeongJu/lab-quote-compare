@@ -1,4 +1,4 @@
-import { addPurchase, getOpenPurchases, deletePurchase, getSettlements, vendorExists, setDelivered } from "../lib/db.mjs";
+import { addPurchase, getPurchases, deletePurchase, vendorExists, setDelivered } from "../lib/db.mjs";
 
 export const config = { api: { bodyParser: false } };
 
@@ -10,8 +10,7 @@ const readJson = async req => {
 export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
-      const [open, settlements] = await Promise.all([getOpenPurchases(), getSettlements()]);
-      return res.status(200).json({ open, settlements });
+      return res.status(200).json({ purchases: await getPurchases() });
     }
     if (req.method === "POST") {
       const b = await readJson(req);

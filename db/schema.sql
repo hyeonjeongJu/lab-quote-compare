@@ -54,18 +54,6 @@ CREATE TABLE IF NOT EXISTS offer (
 CREATE INDEX IF NOT EXISTS idx_offer_product ON offer(product_id);
 CREATE INDEX IF NOT EXISTS idx_offer_quote   ON offer(quote_id);
 
--- 정산 (300만원 묶음 1건 = 정산서 1장)
-CREATE TABLE IF NOT EXISTS settlement (
-  id           SERIAL PRIMARY KEY,
-  settled_at   DATE NOT NULL,
-  total_amount INTEGER NOT NULL,              -- 정산 시점 총액 스냅샷
-  vendor       TEXT,                          -- 정산 대상 업체(업체별 정산)
-  memo         TEXT,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-ALTER TABLE settlement ADD COLUMN IF NOT EXISTS vendor TEXT;   -- 기존 DB 보강
-
 -- 구매 한 건 = 구매 시점 값 freeze(스냅샷). offer/product 바뀌거나 지워져도 불변
 CREATE TABLE IF NOT EXISTS purchase (
   id            SERIAL PRIMARY KEY,
@@ -77,12 +65,15 @@ CREATE TABLE IF NOT EXISTS purchase (
   qty           INTEGER NOT NULL DEFAULT 1,
   purchased_at  DATE NOT NULL,
   delivered_at  DATE,                         -- 납품일(추후 줄마다 직접 기록)
-  settlement_id INTEGER REFERENCES settlement(id) ON DELETE CASCADE, -- NULL=열린 사이클, 정산되면 채워짐
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_purchase_settlement ON purchase(settlement_id);
 ALTER TABLE purchase ADD COLUMN IF NOT EXISTS delivered_at DATE;   -- 기존 DB 보강
+
+-- 정산 기능 제거: 기존 DB의 settlement 및 purchase.settlement_id 정리
+DROP TABLE IF EXISTS settlement CASCADE;
+ALTER TABLE purchase DROP COLUMN IF EXISTS settlement_id;
+DROP INDEX IF EXISTS idx_purchase_settlement;
 
 -- updated_at 자동 갱신 (INSERT 시 default, UPDATE 시 트리거)
 CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger AS $$
@@ -92,7 +83,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['vendor','product','quote','offer','settlement','purchase'] LOOP
+  FOREACH t IN ARRAY ARRAY['vendor','product','quote','offer','purchase'] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS trg_%1$s_updated ON %1$s', t);
     EXECUTE format('CREATE TRIGGER trg_%1$s_updated BEFORE UPDATE ON %1$s
                     FOR EACH ROW EXECUTE FUNCTION set_updated_at()', t);

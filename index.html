@@ -337,35 +337,26 @@
     await loadVendors();
   });
 
-  // ── 구매/정산 ──
-  const TARGET = 3000000;                    // 정산 목표액(300만원)
-  let pdata = { open: { rows: [], total: 0 }, settlements: [] };
-  let viewSel = "open";                      // 구매내역 탭에서 보는 정산 (open=미정산 사이클)
-  const setCache = {};                       // 지난 정산 구매 상세 캐시
+  // ── 구매 ──
+  const TARGET = 3000000;                    // 업체당 월 결제 한도(300만원)
   let sortKey = "purchased_at", sortDir = "desc", vendorFilter = "";   // 구매내역 정렬/필터 상태
   let vendorsList = [];                      // 업체 마스터 (업로드 라디오·업체관리 공용)
+  let pdata = { purchases: { rows: [], total: 0 } };
 
   async function loadPurchases() {
     const r = await fetch("/api/purchases");
     pdata = await r.json();
-    for (const k in setCache) delete setCache[k];   // 갱신되면 캐시 무효화
-    renderProgress(); await renderPurchases();
-  }
-
-  async function fetchSettlement(id) {
-    if (setCache[id]) return setCache[id];
-    const r = await fetch("/api/settlement?id=" + id);
-    return (setCache[id] = (await r.json()).rows || []);
+    renderProgress(); renderPurchases();
   }
 
   function renderProgress() {
-    const rows = pdata.open?.rows || [];
+    const rows = pdata.purchases?.rows || [];
     const byV = {};
     for (const r of rows) byV[r.vendor] = (byV[r.vendor] || 0) + Number(r.amount ?? r.unit_price * r.qty);
     const vendors = Object.entries(byV).sort((a, b) => b[1] - a[1]);   // 큰 금액 먼저
     const el = $("#progress");
-    if (!vendors.length) { el.innerHTML = `<span class="muted">미정산 구매가 없어요.</span>`; return; }
-    el.innerHTML = `<div class="plabel">업체별 미정산 누적 <span class="muted">· 업체당 월 한도 ${won(TARGET)}</span></div>
+    if (!vendors.length) { el.innerHTML = `<span class="muted">구매 기록이 없어요.</span>`; return; }
+    el.innerHTML = `<div class="plabel">업체별 구매 누적 <span class="muted">· 업체당 월 한도 ${won(TARGET)}</span></div>
       <div class="badges">${vendors.map(([v, amt]) => {
         const over = amt >= TARGET;                       // 초과만 빨강, 나머지는 초록 그라데이션
         const ratio = Math.min(1, amt / TARGET);
@@ -377,14 +368,8 @@
       }).join("")}</div>`;
   }
 
-  async function renderPurchases() {
-    if (!pdata.settlements.some(s => String(s.id) === String(viewSel))) viewSel = "open";   // 선택 유효성
-    const opts = [`<option value="open">현재 (미정산) · ${won(pdata.open.total)}</option>`]
-      .concat(pdata.settlements.map(s =>
-        `<option value="${s.id}">${s.vendor ? s.vendor + " · " : ""}${(s.settled_at||"").slice(0,10)} · ${won(s.total_amount)}</option>`)).join("");
-
-    const isOpen = viewSel === "open";
-    const all = isOpen ? pdata.open.rows : await fetchSettlement(viewSel);
+  function renderPurchases() {
+    const all = pdata.purchases.rows;
     const amt = r => Number(r.amount ?? r.unit_price * r.qty);
 
     // 업체 필터
@@ -405,11 +390,9 @@
       <td class="num">${won(amt(r))}</td>
       <td class="dt">${(r.purchased_at || "").slice(0,10) || "-"}</td>
       <td class="dt"><button class="deliv${r.delivered_at ? "" : " none"}" data-id="${r.id}" data-v="${(r.delivered_at || "").slice(0,10)}">${r.delivered_at ? r.delivered_at.slice(0,10) : "입력"}</button></td>
-      ${isOpen ? `<td class="act"><button class="ghost" data-del="${r.id}" title="삭제">✕</button></td>` : ""}
+      <td class="act"><button class="ghost" data-del="${r.id}" title="삭제">✕</button></td>
     </tr>`).join("");
-    const cols = isOpen
-      ? `<col style="width:23%"><col style="width:15%"><col style="width:11%"><col style="width:7%"><col style="width:12%"><col style="width:12%"><col style="width:14%"><col style="width:6%">`
-      : `<col style="width:25%"><col style="width:17%"><col style="width:12%"><col style="width:8%"><col style="width:13%"><col style="width:12%"><col style="width:13%">`;
+    const cols = `<col style="width:23%"><col style="width:15%"><col style="width:11%"><col style="width:7%"><col style="width:12%"><col style="width:12%"><col style="width:14%"><col style="width:6%">`;
     const th = `<thead><tr>
         <th>상품</th>
         <th><select id="vendorFilter" class="thsel"><option value="">업체 (전체)</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select></th>
@@ -417,14 +400,11 @@
         <th class="srt" data-k="qty" style="text-align:right">수량${arr("qty")}</th>
         <th class="srt" data-k="amount" style="text-align:right">금액${arr("amount")}</th>
         <th class="srt" data-k="purchased_at">구매일${arr("purchased_at")}</th>
-        <th>납품일</th>
-        ${isOpen ? "<th></th>" : ""}</tr></thead>`;
+        <th>납품일</th><th></th></tr></thead>`;
     const tableBlock = all.length ? `<div class="tw"><table style="min-width:720px"><colgroup>${cols}</colgroup>${th}<tbody>${body}</tbody></table></div>`
-      : `<p class="muted">${isOpen ? "현재 사이클에 구매내역이 없어요. 견적 비교 탭에서 [구매]를 눌러 담아보세요." : "이 정산에 구매내역이 없어요."}</p>`;
-    const settleBtn = (isOpen && vendorFilter && view.length) ? `<button id="settleBtn">📄 ${vendorFilter} 정산서 생성 (${won(total)})</button>` : "";
-    const settleHint = (isOpen && all.length && !vendorFilter) ? `<span class="muted">정산서는 업체별로 만들어요 — 표의 업체명을 클릭해 그 업체만 필터한 뒤 생성하세요.</span>` : "";
+      : `<p class="muted">구매 기록이 없어요. 견적 비교 탭의 [구매] 또는 아래 수동 추가로 담아보세요.</p>`;
     const vopts = vendorsList.map(v => `<option value="${attr(v.name)}"${v.name === "비티비(동인)" ? " selected" : ""}>${v.name}</option>`).join("");
-    const manualRow = isOpen ? `<div class="manual-add">
+    const manualRow = `<div class="manual-add">
         <input id="mCode" placeholder="상품코드" style="flex:1 1 100px">
         <input id="mName" placeholder="품명" style="flex:1 1 100px">
         <select id="mVendor">${vopts}</select>
@@ -432,20 +412,15 @@
         <input id="mQty" type="number" min="1" value="1" placeholder="수량" style="width:60px">
         <input id="mDate" type="date" value="${today}">
         <button id="mAdd">추가</button>
-      </div>` : "";
+      </div>`;
     $("#pout").innerHTML = `
       <div class="toolbar">
         <span class="count">${view.length}건 · 합계 <b>${won(total)}</b></span>
-        <select id="setSel" style="margin-left:auto">${opts}</select>
-        <button class="ghost" id="csvBtn">⬇ CSV 내려받기</button>
+        <button class="ghost" id="csvBtn" style="margin-left:auto">⬇ CSV 내려받기</button>
       </div>
       ${manualRow}
-      ${tableBlock}
-      ${(settleBtn || settleHint) ? `<div class="settle-row"><span></span>${settleBtn || settleHint}</div>` : ""}
-      ${!isOpen ? `<div class="settle-row"><span></span><button id="delSetBtn" class="ghost">🗑 이 정산서 삭제</button></div>` : ""}`;
+      ${tableBlock}`;
 
-    $("#setSel").value = viewSel;
-    $("#setSel").onchange = async e => { viewSel = e.target.value; await renderPurchases(); };
     const vf = $("#vendorFilter"); if (vf) { vf.value = vendorFilter; vf.onchange = e => { vendorFilter = e.target.value; renderPurchases(); }; }
     $("#pout").querySelectorAll("th.srt").forEach(el => el.onclick = () => {
       const k = el.dataset.k;
@@ -453,22 +428,8 @@
       else { sortKey = k; sortDir = k === "purchased_at" ? "desc" : "asc"; }
       renderPurchases();
     });
-    $("#csvBtn").onclick = () => {
-      const label = isOpen ? "현재_" + today
-        : "정산_" + ((pdata.settlements.find(s => String(s.id) === String(viewSel)) || {}).settled_at || "").slice(0,10);
-      csvDownload(view, label);        // 화면에 보이는(필터·정렬된) 그대로 내보냄
-    };
-    const sb = $("#settleBtn"); if (sb) sb.onclick = doSettle;
+    $("#csvBtn").onclick = () => csvDownload(view, "구매내역_" + today);
     const ma = $("#mAdd"); if (ma) ma.onclick = addManual;
-    const ds = $("#delSetBtn"); if (ds) ds.onclick = delSettlement;
-  }
-
-  async function delSettlement() {
-    if (!confirm("이 정산서를 삭제할까요?\n딸린 구매 기록도 함께 삭제되고 되돌릴 수 없어요.")) return;
-    const r = await fetch("/api/settlement?id=" + viewSel, { method: "DELETE" });
-    if (!r.ok) { alert("삭제 실패"); return; }
-    viewSel = "open";
-    await loadPurchases();
   }
 
   // 수동 구매 추가 (표 위 인라인 한 줄) — 전 필드 필수
@@ -528,19 +489,6 @@
       await loadPurchases();
     }
   });
-
-  async function doSettle() {
-    const vendor = vendorFilter;
-    if (!vendor) return;
-    const total = pdata.open.rows.filter(r => r.vendor === vendor).reduce((s, r) => s + Number(r.amount ?? r.unit_price * r.qty), 0);
-    if (!confirm(`[${vendor}] 미정산 ${won(total)}을 정산서로 발행할까요?\n발행 후 이 구매들은 정산 처리돼요 (상품·견적은 유지).`)) return;
-    const r = await fetch("/api/settlement", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ settledAt: today, vendor }) });
-    const j = await r.json();
-    if (!r.ok) { alert("오류: " + (j.error || "실패")); return; }
-    viewSel = String(j.id);                              // 새로 만든 정산으로 화면 전환
-    await loadPurchases();
-    csvDownload(await fetchSettlement(j.id), "정산_" + vendor + "_" + today);   // 생성 즉시 CSV 다운로드
-  }
 
   // CSV 내보내기(엑셀에서 열림, BOM 포함). 양식 임시 — 나중 교체 가능
   function csvDownload(rows, name) {
