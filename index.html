@@ -114,6 +114,7 @@
   dialog label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--sub);}
   dialog input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:14px;}
   .dlg-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:4px;}
+  .dlg-hint{font-size:12px;color:var(--sub);line-height:1.55;margin:0;padding:8px 10px;background:var(--bg);border-radius:8px;}
   .field{display:flex;flex-direction:column;gap:6px;}
   .flabel{font-size:13px;color:var(--sub);}
   #upVendors{display:flex;flex-wrap:wrap;gap:8px;}
@@ -142,7 +143,6 @@
   <div class="header">
     <div class="titles">
       <h1>🧪 실험시약 견적 비교</h1>
-      <p class="sub">견적서(.xls/.pdf) 올리면 상품코드별로 최저가(단위당)를 비교해줘요.</p>
     </div>
     <button id="pick">📎 견적서 올리기</button>
   </div>
@@ -197,6 +197,7 @@
     <h3>📎 견적서 업로드</h3>
     <div class="field"><span class="flabel">어느 업체 견적서인가요?</span><div id="upVendors"></div></div>
     <label>파일 (.xls · .pdf · 여러 개)<input type="file" id="upFile" accept=".xls,.xlsx,.pdf" multiple></label>
+    <p class="dlg-hint">같은 <b>파일명</b>으로 올리면 견적비교에서 기존 견적서가 <b>대체</b>돼요. 파일명이 다르면 <b>새 견적서로 추가</b>됩니다.</p>
     <div class="dlg-actions">
       <button value="cancel" class="ghost" type="submit">취소</button>
       <button value="ok" type="submit">업로드</button>
