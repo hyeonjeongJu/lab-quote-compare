@@ -11,11 +11,11 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       const url = new URL(req.url, "http://x");
-      const from = url.searchParams.get("from"), to = url.searchParams.get("to");
-      if (from || to || url.searchParams.has("limit")) {   // CSV 배치 조회(기간+페이지네이션)
+      const from = url.searchParams.get("from"), to = url.searchParams.get("to"), vendor = url.searchParams.get("vendor");
+      if (from || to || vendor || url.searchParams.has("limit")) {   // CSV 배치 조회(기간+업체+페이지네이션)
         const limit = Math.min(2000, Math.max(1, Number(url.searchParams.get("limit")) || 1000));
         const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
-        const rows = await getPurchasesRange(from || "0001-01-01", to || "9999-12-31", limit, offset);
+        const rows = await getPurchasesRange(from || "0001-01-01", to || "9999-12-31", vendor || "", limit, offset);
         return res.status(200).json({ rows });
       }
       return res.status(200).json({ purchases: await getPurchases() });

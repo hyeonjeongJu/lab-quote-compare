@@ -63,8 +63,6 @@
   .expired{color:var(--warn);font-size:11px;}
   .muted{color:var(--sub);font-size:13px;font-family:var(--mono);}
   .toolbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0 2px 12px;min-height:22px;}
-  .chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);cursor:pointer;user-select:none;}
-  .chk input{cursor:pointer;}
   .count{color:var(--sub);font-size:12px;font-family:var(--mono);margin-right:auto;}
 
   /* 탭 */
@@ -85,8 +83,6 @@
   button.buy{padding:4px 10px;font-size:12px;background:var(--near-black);color:var(--near-white);}
   @media (prefers-color-scheme: dark){ button.buy{background:var(--near-white);color:var(--near-black);} }
   td.act{text-align:center;}
-  td.chk,th.chk{text-align:center;padding-left:6px;padding-right:6px;}
-  .chk input{cursor:pointer;margin:0;}
   /* 구매내역 */
   .toolbar{flex-wrap:wrap;}
   th.srt{cursor:pointer;user-select:none;white-space:nowrap;}
@@ -237,6 +233,7 @@
     <h3>⬇ CSV 내려받기</h3>
     <label>기간 시작 <input id="csvFrom" type="date"></label>
     <label>기간 끝 <input id="csvTo" type="date"></label>
+    <label>업체 <select id="csvVendor"></select></label>
     <label class="switch"><input type="checkbox" id="csvPretaxToggle"><span class="track"></span> 공급가 표기(부가세 미포함 컬럼 포함)</label>
     <p class="dlg-hint">구매일 기준으로 필터링돼요. 비워두면 전체 기간.</p>
     <div class="dlg-actions">
@@ -427,7 +424,6 @@
   // ── 구매 ──
   const TARGET = 3000000;                    // 업체당 월 결제 한도(300만원)
   let sortKey = "purchased_at", sortDir = "desc", vendorFilter = "";   // 구매내역 정렬/필터 상태
-  let selectedIds = new Set();               // CSV용 선택된 구매 id
   let vendorsList = [];                      // 업체 마스터 (업로드 라디오·업체관리 공용)
   let pdata = { purchases: { rows: [], total: 0 } };
   let settlements = [];                      // 정산 기록(외상장부 credit)
@@ -507,27 +503,21 @@
   function renderPurchases() {
     const all = pdata.purchases.rows;
     const amt = r => Number(r.amount ?? r.unit_price * r.qty);
-    const allIds = new Set(all.map(r => String(r.id)));
-    [...selectedIds].forEach(id => { if (!allIds.has(id)) selectedIds.delete(id); });   // 삭제된 구매 정리
 
-    // 업체 필터
+    // 업체 필터(화면 표시 전용)
     const vendors = [...new Set(all.map(r => r.vendor).filter(Boolean))].sort();
     if (vendorFilter && !vendors.includes(vendorFilter)) vendorFilter = "";
     let view = vendorFilter ? all.filter(r => r.vendor === vendorFilter) : all.slice();
-    // 정렬 (헤더 클릭: 단가/수량/금액/구매일)
+    // 정렬 (헤더 클릭: 단가/수량/금액/구매일/납품일)
     const val = { unit_price: r => Number(r.unit_price), qty: r => Number(r.qty), amount: amt, purchased_at: r => (r.purchased_at || ""), delivered_at: r => (r.delivered_at || "") };
     view.sort((a, b) => { const x = val[sortKey](a), y = val[sortKey](b); const c = x < y ? -1 : x > y ? 1 : 0; return sortDir === "asc" ? c : -c; });
     const total = view.reduce((s, r) => s + amt(r), 0);
-    const visIds = view.map(r => String(r.id));
-    const selCount = visIds.filter(id => selectedIds.has(id)).length;
     const arr = k => sortKey === k ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
     const pre = showPretax;   // 부가세 미포함(공급가) 단가/금액 컬럼 표시 여부
     const numTh = (label, k) => k ? `<th class="srt" data-k="${k}">${label}${arr(k)}</th>` : `<th>${label}</th>`;
     // 컬럼 정의(px 폭) — pre=true면 미포함 단가/금액 컬럼이 각 부가세포함 컬럼 앞에 추가
     const C = [
-      { w: 34, th: `<th class="chk"><input type="checkbox" id="allChk" title="전체 선택"></th>`,
-        cell: r => `<td class="chk"><input type="checkbox" class="rowchk" data-id="${r.id}"${selectedIds.has(String(r.id)) ? " checked" : ""}></td>` },
       { w: 150, th: `<th>상품</th>`,
         cell: r => `<td class="ell" data-full="${attr(r.code + " " + (r.name || ""))}"><b>${r.code}</b> ${r.name || ""}</td>` },
       { w: 96, th: `<th><select id="vendorFilter" class="thsel"><option value="">업체 (전체)</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select></th>`,
@@ -562,10 +552,10 @@
         <input id="mDate" type="date" value="${today}">
         <button id="mAdd">추가</button>
       </div>`;
-    const countHtml = n => `${view.length}건 · 합계 ${pre ? `<span class="raw">${won(total)}</span> ` : ""}<b>${won(vat(total))}</b>${n ? ` · <b>${n}건 선택</b>` : ""}`;
+    const countHtml = `${view.length}건 · 합계 ${pre ? `<span class="raw">${won(total)}</span> ` : ""}<b>${won(vat(total))}</b>`;
     $("#pout").innerHTML = `
       <div class="toolbar">
-        <span class="count">${countHtml(selCount)}</span>
+        <span class="count">${countHtml}</span>
         <label class="switch" style="margin-left:auto"><input type="checkbox" id="pretaxToggle"${pre ? " checked" : ""}><span class="track"></span> 공급가 표기</label>
         <button class="ghost" id="csvBtn">⬇ CSV 내려받기</button>
       </div>
@@ -580,22 +570,7 @@
       renderPurchases();
     });
     $("#pretaxToggle").onchange = e => { showPretax = e.target.checked; LS.set("lqc.pretax.purchases", showPretax); renderPurchases(); };
-    $("#csvBtn").onclick = () => openCsvDlg();   // 기간/양식 모달 → 배치 다운로드
-    const ac = $("#allChk");
-    const refreshSel = () => {   // 체크 변경 시 표 재렌더 없이 라벨·전체선택만 갱신
-      const n = visIds.filter(id => selectedIds.has(id)).length;
-      const cnt = $("#pout .count"); if (cnt) cnt.innerHTML = countHtml(n);
-      if (ac) ac.checked = visIds.length > 0 && n === visIds.length;
-    };
-    if (ac) ac.onchange = () => {
-      visIds.forEach(id => ac.checked ? selectedIds.add(id) : selectedIds.delete(id));
-      $("#pout").querySelectorAll(".rowchk").forEach(c => c.checked = selectedIds.has(c.dataset.id));
-      refreshSel();
-    };
-    $("#pout").querySelectorAll(".rowchk").forEach(c => c.onchange = () => {
-      const id = c.dataset.id; c.checked ? selectedIds.add(id) : selectedIds.delete(id); refreshSel();
-    });
-    refreshSel();   // 초기 동기화(정렬·필터 후에도 선택 유지)
+    $("#csvBtn").onclick = () => openCsvDlg();   // 기간/업체/양식 모달 → 배치 다운로드
     const ma = $("#mAdd"); if (ma) ma.onclick = addManual;
   }
 
@@ -687,19 +662,22 @@
   const csvDlg = $("#csvDlg");
   function openCsvDlg() {
     $("#csvFrom").value = ""; $("#csvTo").value = today;
+    const pvendors = [...new Set((pdata.purchases?.rows || []).map(r => r.vendor).filter(Boolean))].sort();   // 구매기록에 실제 있는 업체만
+    $("#csvVendor").innerHTML = `<option value="">전체</option>` + pvendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("");
     $("#csvPretaxToggle").checked = csvPretax;
     csvDlg.showModal();
   }
   $("#csvPretaxToggle").onchange = e => { csvPretax = e.target.checked; LS.set("lqc.pretax.csv", csvPretax); };
   csvDlg.addEventListener("close", async () => {
     if (csvDlg.returnValue !== "ok") return;
-    const from = $("#csvFrom").value, to = $("#csvTo").value;
+    const from = $("#csvFrom").value, to = $("#csvTo").value, vendor = $("#csvVendor").value;
     const all = []; const LIMIT = 1000;
     try {
       for (let offset = 0; ; offset += LIMIT) {
         const qs = new URLSearchParams({ limit: LIMIT, offset });
         if (from) qs.set("from", from);
         if (to) qs.set("to", to);
+        if (vendor) qs.set("vendor", vendor);
         const r = await fetch("/api/purchases?" + qs);
         const { rows } = await r.json();
         all.push(...(rows || []));
@@ -707,8 +685,8 @@
         if (!rows || rows.length < LIMIT) break;      // 마지막 배치
       }
     } catch (e) { $("#status").textContent = "CSV 오류: " + e.message; return; }
-    if (!all.length) { $("#status").textContent = "해당 기간에 구매 기록이 없어요."; return; }
-    csvDownload(all, `구매내역_${from || "전체"}~${to || today}`, csvPretax);
+    if (!all.length) { $("#status").textContent = "조건에 맞는 구매 기록이 없어요."; return; }
+    csvDownload(all, `구매내역_${vendor || "전체"}_${from || "전체"}~${to || today}`, csvPretax);
     $("#status").textContent = `CSV ${all.length}건 내려받음`;
   });
 
