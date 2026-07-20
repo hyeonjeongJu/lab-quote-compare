@@ -185,6 +185,7 @@
     <label>업체 <input id="setVendor" readonly></label>
     <label>정산금액 <input id="setAmount" type="number" min="0" placeholder="갚은 금액"></label>
     <label>정산일 <input id="setDate" type="date"></label>
+    <label>메모 <input id="setMemo" placeholder="선택 입력"></label>
     <div class="dlg-actions">
       <button value="cancel" class="ghost" type="submit">취소</button>
       <button value="ok" type="submit">저장</button>
@@ -471,11 +472,12 @@
     $("#setVendor").value = b.dataset.vendor;
     $("#setAmount").value = Math.max(0, Number(b.dataset.bal)) || "";   // 미정산 잔액 기본값
     $("#setDate").value = today;
+    $("#setMemo").value = "";
     setDlg.showModal();
   });
   setDlg.addEventListener("close", async () => {
     if (setDlg.returnValue !== "ok") return;
-    const body = { vendor: $("#setVendor").value, amount: Number($("#setAmount").value), settledAt: $("#setDate").value };
+    const body = { vendor: $("#setVendor").value, amount: Number($("#setAmount").value), settledAt: $("#setDate").value, memo: $("#setMemo").value.trim() || null };
     if (!body.vendor || !body.amount || !body.settledAt) { $("#status").textContent = "업체·정산금액·정산일을 확인하세요."; return; }
     await fetch("/api/settlement", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     await loadPurchases();
