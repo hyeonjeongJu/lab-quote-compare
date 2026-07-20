@@ -76,11 +76,13 @@ CREATE TABLE IF NOT EXISTS purchase (
   unit_price    INTEGER NOT NULL,             -- freeze 포장당 단가
   qty           INTEGER NOT NULL DEFAULT 1,
   purchased_at  DATE NOT NULL,
+  delivered_at  DATE,                         -- 납품일(추후 줄마다 직접 기록)
   settlement_id INTEGER REFERENCES settlement(id) ON DELETE CASCADE, -- NULL=열린 사이클, 정산되면 채워짐
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_purchase_settlement ON purchase(settlement_id);
+ALTER TABLE purchase ADD COLUMN IF NOT EXISTS delivered_at DATE;   -- 기존 DB 보강
 
 -- updated_at 자동 갱신 (INSERT 시 default, UPDATE 시 트리거)
 CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger AS $$

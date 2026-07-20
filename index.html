@@ -82,6 +82,9 @@
   th.srt:hover{color:var(--ink);}
   td.vcell{cursor:pointer;}
   td.vcell:hover{text-decoration:underline;}
+  button.deliv{background:var(--card);border:1px solid var(--line);border-radius:7px;color:var(--ink);font-size:12px;font-weight:400;padding:3px 9px;font-family:var(--mono);}
+  button.deliv.none{border-style:dashed;color:var(--sub);font-family:var(--sans);}
+  button.deliv:hover{border-color:var(--ink);opacity:1;}
   select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;max-width:60vw;}
   select.thsel{padding:0;border:0;background:transparent;color:var(--sub);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;max-width:100%;}
   select.thsel:hover{color:var(--ink);}
@@ -162,6 +165,7 @@
   </section>
 </div>
 <div id="tip"></div>
+<input type="date" id="delivPick" style="position:fixed;left:-9999px;top:0;">
 <dialog id="upDlg">
   <form method="dialog">
     <h3>📎 견적서 업로드</h3>
@@ -400,11 +404,12 @@
       <td class="num">${r.qty}</td>
       <td class="num">${won(amt(r))}</td>
       <td class="dt">${(r.purchased_at || "").slice(0,10) || "-"}</td>
+      <td class="dt"><button class="deliv${r.delivered_at ? "" : " none"}" data-id="${r.id}" data-v="${(r.delivered_at || "").slice(0,10)}">${r.delivered_at ? r.delivered_at.slice(0,10) : "입력"}</button></td>
       ${isOpen ? `<td class="act"><button class="ghost" data-del="${r.id}" title="삭제">✕</button></td>` : ""}
     </tr>`).join("");
     const cols = isOpen
-      ? `<col style="width:28%"><col style="width:19%"><col style="width:13%"><col style="width:9%"><col style="width:14%"><col style="width:11%"><col style="width:6%">`
-      : `<col style="width:30%"><col style="width:21%"><col style="width:14%"><col style="width:10%"><col style="width:15%"><col style="width:10%">`;
+      ? `<col style="width:23%"><col style="width:15%"><col style="width:11%"><col style="width:7%"><col style="width:12%"><col style="width:12%"><col style="width:14%"><col style="width:6%">`
+      : `<col style="width:25%"><col style="width:17%"><col style="width:12%"><col style="width:8%"><col style="width:13%"><col style="width:12%"><col style="width:13%">`;
     const th = `<thead><tr>
         <th>상품</th>
         <th><select id="vendorFilter" class="thsel"><option value="">업체 (전체)</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select></th>
@@ -412,8 +417,9 @@
         <th class="srt" data-k="qty" style="text-align:right">수량${arr("qty")}</th>
         <th class="srt" data-k="amount" style="text-align:right">금액${arr("amount")}</th>
         <th class="srt" data-k="purchased_at">구매일${arr("purchased_at")}</th>
+        <th>납품일</th>
         ${isOpen ? "<th></th>" : ""}</tr></thead>`;
-    const tableBlock = all.length ? `<div class="tw"><table><colgroup>${cols}</colgroup>${th}<tbody>${body}</tbody></table></div>`
+    const tableBlock = all.length ? `<div class="tw"><table style="min-width:720px"><colgroup>${cols}</colgroup>${th}<tbody>${body}</tbody></table></div>`
       : `<p class="muted">${isOpen ? "현재 사이클에 구매내역이 없어요. 견적 비교 탭에서 [구매]를 눌러 담아보세요." : "이 정산에 구매내역이 없어요."}</p>`;
     const settleBtn = (isOpen && vendorFilter && view.length) ? `<button id="settleBtn">📄 ${vendorFilter} 정산서 생성 (${won(total)})</button>` : "";
     const settleHint = (isOpen && all.length && !vendorFilter) ? `<span class="muted">정산서는 업체별로 만들어요 — 표의 업체명을 클릭해 그 업체만 필터한 뒤 생성하세요.</span>` : "";
@@ -494,8 +500,19 @@
     await loadPurchases();
   });
 
-  // 구매내역 탭: 업체 셀 클릭=그 업체만 필터(재클릭 해제) / 구매 삭제(열린 사이클만)
+  // 납품일 입력 — 공유 date picker
+  const delivPick = $("#delivPick"); let delivId = null;
+  delivPick.onchange = async () => {
+    if (!delivId) return;
+    await fetch("/api/purchases", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: delivId, deliveredAt: delivPick.value }) });
+    delivId = null;
+    await loadPurchases();
+  };
+
+  // 구매내역 탭: 납품일 입력 / 업체 셀 클릭=필터(재클릭 해제) / 구매 삭제(열린 사이클만)
   $("#pout").addEventListener("click", async e => {
+    const dv = e.target.closest(".deliv");
+    if (dv) { delivId = dv.dataset.id; delivPick.value = dv.dataset.v || ""; try { delivPick.showPicker(); } catch { delivPick.focus(); } return; }
     const vc = e.target.closest("[data-vf]");
     if (vc) { vendorFilter = vendorFilter === vc.dataset.vf ? "" : vc.dataset.vf; renderPurchases(); return; }
     const del = e.target.closest("[data-del]");
@@ -523,9 +540,9 @@
     const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const amt = x => Number(x.amount ?? x.unit_price * x.qty);
     const total = (rows || []).reduce((s, x) => s + amt(x), 0);
-    const lines = [["상품코드","품명","업체","단가","수량","금액","구매일"].join(",")]
-      .concat((rows || []).map(x => [x.code, x.name, x.vendor, x.unit_price, x.qty, amt(x), (x.purchased_at || "").slice(0,10)].map(q).join(",")))
-      .concat([["합계","","","","",total,""].map(q).join(",")]);   // 마지막 줄 합계
+    const lines = [["상품코드","품명","업체","단가","수량","금액","구매일","납품일"].join(",")]
+      .concat((rows || []).map(x => [x.code, x.name, x.vendor, x.unit_price, x.qty, amt(x), (x.purchased_at || "").slice(0,10), (x.delivered_at || "").slice(0,10)].map(q).join(",")))
+      .concat([["합계","","","","",total,"",""].map(q).join(",")]);   // 마지막 줄 합계
     const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = `${name || "export"}.csv`; a.click();
