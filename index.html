@@ -404,7 +404,7 @@
           <td class="ell" data-full="${attr(r.vendor)}">${isBest ? '<span class="crown">🏆</span> ' : ""}${r.vendor || "?"}</td>
           <td class="muted ell" data-full="${attr(r.manufacturer)}">${r.manufacturer || ""}</td>
           ${priceCells(r)}
-          <td class="num unit">${r.unit_price != null ? (r.spec_unit === "ml" ? Number(r.unit_price).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : Math.round(Number(r.unit_price)).toLocaleString()) + "원/" + r.spec_unit : '<span class="muted">규격?</span>'}</td>
+          <td class="num unit">${r.unit_price != null ? (["ml","U"].includes(r.spec_unit) ? Number(r.unit_price).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : Math.round(Number(r.unit_price)).toLocaleString()) + "원/" + r.spec_unit : '<span class="muted">규격?</span>'}</td>
           <td class="dt">${r.expiration_date ? r.expiration_date.slice(0,10) : "-"}</td>
           <td class="muted ell" data-full="${attr(r.memo)}">${r.memo || ""}</td>
           <td class="act"><button class="buy" data-code="${attr(g.code)}" data-name="${attr(g.name)}" data-vendor="${attr(r.vendor)}" data-price="${r.price}">구매</button></td>
