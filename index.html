@@ -661,6 +661,8 @@
   $("#pout").addEventListener("click", async e => {
     const cp = e.target.closest("[data-copy]");
     if (cp) {                                   // 재구매: 구매일·납품일 빈 초안 복사 → 목록 맨 위
+      const src = pdata.purchases.rows.find(x => String(x.id) === String(cp.dataset.copy));
+      if (!confirm(`"${src ? (src.code + " " + (src.name || "")).trim() : ""}"\n재구매 기록을 추가할까요? (구매일·납품일은 비워둡니다)`)) return;
       cp.disabled = true;
       const res = await fetch("/api/purchases?copy=" + cp.dataset.copy, { method: "POST" });
       if (!res.ok) { cp.disabled = false; $("#status").textContent = "복사 실패: " + ((await res.json().catch(() => ({}))).error || res.status); return; }
