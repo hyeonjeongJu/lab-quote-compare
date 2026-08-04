@@ -91,7 +91,8 @@
   td.vcell:hover{text-decoration:underline;}
   /* 재구매 복사 + : 행 hover(또는 키보드 포커스)에만 노출. 상품 셀 오른쪽 끝 고정 */
   td.pcell{position:relative;padding-right:26px;}
-  button.cp{position:absolute;top:6px;right:4px;width:18px;height:18px;padding:0;font-size:13px;line-height:1;
+  button.cp{position:absolute;top:50%;transform:translateY(-50%);right:4px;width:18px;height:18px;padding:0;font-size:13px;line-height:1;
+            display:grid;place-items:center;
             border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--sub);opacity:0;}
   tr:hover button.cp,button.cp:focus-visible{opacity:1;}
   button.cp:hover{color:var(--ink);}
