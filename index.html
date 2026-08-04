@@ -96,6 +96,10 @@
             border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--sub);opacity:0;}
   tr:hover button.cp,button.cp:focus-visible{opacity:1;}
   button.cp:hover{color:var(--ink);}
+  /* 오늘 등록된 행 표시 — 셀 위쪽 padding(9px) 안에 넣어 품명 글자를 안 가림 */
+  .newbadge{position:absolute;top:0;left:4px;font-size:7px;font-weight:700;line-height:9px;letter-spacing:.4px;
+            padding:0 3px;border-radius:0 0 4px 4px;background:var(--best);color:#fff;}
+  @media (prefers-color-scheme: dark){ .newbadge{color:var(--bg);} }   /* 다크의 --best는 밝은 초록 → 글자는 어둡게 */
   select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;max-width:60vw;}
   select.thsel{padding:0;border:0;background:transparent;color:var(--sub);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;max-width:100%;}
   select.thsel:hover{color:var(--ink);}
@@ -566,7 +570,9 @@
     // 컬럼 정의(px 폭) — pre=true면 미포함 단가/금액 컬럼이 각 부가세포함 컬럼 앞에 추가
     const C = [
       { w: 150, th: `<th>상품</th>`,
-        cell: r => `<td class="ell pcell" data-full="${attr(r.code + " " + (r.name || ""))}"><b>${r.code}</b> ${r.name || ""}` +
+        cell: r => `<td class="ell pcell" data-full="${attr(r.code + " " + (r.name || ""))}">` +
+          (r.is_new ? `<span class="newbadge" title="오늘 등록">NEW</span>` : "") +
+          `<b>${r.code}</b> ${r.name || ""}` +
           `<button class="cp" data-copy="${r.id}" title="같은 상품 재구매 기록 추가">+</button></td>` },
       { w: 96, th: `<th><select id="vendorFilter" class="thsel"><option value="">업체 (전체)</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select></th>`,
         cell: r => `<td class="ell vcell" data-full="${attr(r.vendor)}" data-vf="${attr(r.vendor)}" title="이 업체만 보기">${r.vendor || ""}</td>` },
