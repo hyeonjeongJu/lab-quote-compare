@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS purchase (
   qty           INTEGER NOT NULL DEFAULT 1,
   purchased_at  DATE NOT NULL,
   delivered_at  DATE,                         -- 납품일
-  manual        BOOLEAN NOT NULL DEFAULT true, -- 수기추가=true(수정 가능) / 견적기반 구매=false(잠금)
+  manual        BOOLEAN NOT NULL DEFAULT true, -- 출처 표시만: 수기추가=true / 견적기반 구매=false. 수정은 둘 다 허용
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );

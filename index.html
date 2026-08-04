@@ -568,8 +568,8 @@
         cell: r => `<td class="dt">${(r.purchased_at || "").slice(0,10) || "-"}</td>` },
       { w: 82, th: `<th class="srt" data-k="delivered_at">납품일${arr("delivered_at")}</th>`,
         cell: r => `<td class="dt">${r.delivered_at ? r.delivered_at.slice(0,10) : "-"}</td>` },
-      { w: 74, th: `<th></th>`,   // 수기추가(manual)만 수정 가능 — 견적기반은 잠금
-        cell: r => `<td class="act">${r.manual ? `<button class="buy" data-edit="${r.id}" style="white-space:nowrap">수정</button>` : ""}</td>` },
+      { w: 74, th: `<th></th>`,   // 견적기반 구매도 수정 가능 — 구매내역이 정산 기준(견적과 틀어져도 OK)
+        cell: r => `<td class="act"><button class="buy" data-edit="${r.id}" style="white-space:nowrap">수정</button></td>` },
       { w: 34, th: `<th></th>`,
         cell: r => `<td class="act"><button class="ghost" data-del="${r.id}" title="삭제">✕</button></td>` },
     ];
@@ -640,7 +640,7 @@
     await loadPurchases();
   });
 
-  // 구매내역 탭: 수정 버튼(수기추가만) / 업체 셀 클릭=필터(재클릭 해제) / 구매 삭제
+  // 구매내역 탭: 수정 버튼 / 업체 셀 클릭=필터(재클릭 해제) / 구매 삭제
   $("#pout").addEventListener("click", async e => {
     const ed = e.target.closest("[data-edit]");
     if (ed) { openEdit(ed.dataset.edit); return; }
@@ -653,7 +653,7 @@
     }
   });
 
-  // 구매 수정 모달 (수기추가 행만) — 상품코드·품명·업체·공급단가·수량·구매일·납품일
+  // 구매 수정 모달 (모든 행) — 상품코드·품명·업체·공급단가·수량·구매일·납품일
   const editDlg = $("#editDlg"); let editId = null;
   function openEdit(id) {
     const r = pdata.purchases.rows.find(x => String(x.id) === String(id)); if (!r) return;
