@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS purchase (
   vendor        TEXT,                         -- freeze (산 업체)
   unit_price    INTEGER NOT NULL,             -- freeze 포장당 단가
   qty           INTEGER NOT NULL DEFAULT 1,
-  purchased_at  DATE NOT NULL,
+  purchased_at  DATE,                         -- 복사(재구매) 직후엔 NULL = 날짜 미입력 초안. 수정 저장 시 필수
   delivered_at  DATE,                         -- 납품일
   manual        BOOLEAN NOT NULL DEFAULT true, -- 출처 표시만: 수기추가=true / 견적기반 구매=false. 수정은 둘 다 허용
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS purchase (
 );
 ALTER TABLE purchase ADD COLUMN IF NOT EXISTS delivered_at DATE;                         -- 기존 DB 보강
 ALTER TABLE purchase ADD COLUMN IF NOT EXISTS manual BOOLEAN NOT NULL DEFAULT true;      -- 기존 행은 수정 가능(수기 취급)
+ALTER TABLE purchase ALTER COLUMN purchased_at DROP NOT NULL;                             -- 재구매 복사 초안(날짜 빈 값) 허용
 
 -- 정산 기록(외상장부 credit) — 업체별 갚은 금액. 구매줄과 링크하지 않음(미정산=구매합−정산합)
 CREATE TABLE IF NOT EXISTS settlement (

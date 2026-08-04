@@ -89,6 +89,12 @@
   th.srt:hover{color:var(--ink);}
   td.vcell{cursor:pointer;}
   td.vcell:hover{text-decoration:underline;}
+  /* 재구매 복사 + : 행 hover(또는 키보드 포커스)에만 노출. 상품 셀 오른쪽 끝 고정 */
+  td.pcell{position:relative;padding-right:26px;}
+  button.cp{position:absolute;top:6px;right:4px;width:18px;height:18px;padding:0;font-size:13px;line-height:1;
+            border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--sub);opacity:0;}
+  tr:hover button.cp,button.cp:focus-visible{opacity:1;}
+  button.cp:hover{color:var(--ink);}
   select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;max-width:60vw;}
   select.thsel{padding:0;border:0;background:transparent;color:var(--sub);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;max-width:100%;}
   select.thsel:hover{color:var(--ink);}
@@ -547,7 +553,10 @@
     let view = vendorFilter ? all.filter(r => r.vendor === vendorFilter) : all.slice();
     // 정렬 (헤더 클릭: 단가/수량/금액/구매일/납품일)
     const val = { unit_price: r => Number(r.unit_price), qty: r => Number(r.qty), amount: amt, purchased_at: r => (r.purchased_at || ""), delivered_at: r => (r.delivered_at || "") };
-    view.sort((a, b) => { const x = val[sortKey](a), y = val[sortKey](b); const c = x < y ? -1 : x > y ? 1 : 0; return sortDir === "asc" ? c : -c; });
+    view.sort((a, b) => {
+      if (!a.purchased_at !== !b.purchased_at) return a.purchased_at ? 1 : -1;   // 구매일 미입력(복사 초안)은 정렬 무관 항상 맨 위
+      const x = val[sortKey](a), y = val[sortKey](b); const c = x < y ? -1 : x > y ? 1 : 0; return sortDir === "asc" ? c : -c;
+    });
     const total = view.reduce((s, r) => s + amt(r), 0);
     const arr = k => sortKey === k ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
@@ -556,7 +565,8 @@
     // 컬럼 정의(px 폭) — pre=true면 미포함 단가/금액 컬럼이 각 부가세포함 컬럼 앞에 추가
     const C = [
       { w: 150, th: `<th>상품</th>`,
-        cell: r => `<td class="ell" data-full="${attr(r.code + " " + (r.name || ""))}"><b>${r.code}</b> ${r.name || ""}</td>` },
+        cell: r => `<td class="ell pcell" data-full="${attr(r.code + " " + (r.name || ""))}"><b>${r.code}</b> ${r.name || ""}` +
+          `<button class="cp" data-copy="${r.id}" title="같은 상품 재구매 기록 추가">+</button></td>` },
       { w: 96, th: `<th><select id="vendorFilter" class="thsel"><option value="">업체 (전체)</option>${vendors.map(v => `<option value="${attr(v)}">${v}</option>`).join("")}</select></th>`,
         cell: r => `<td class="ell vcell" data-full="${attr(r.vendor)}" data-vf="${attr(r.vendor)}" title="이 업체만 보기">${r.vendor || ""}</td>` },
       ...(pre ? [{ w: 106, th: numTh("공급단가"), cell: r => `<td class="num raw">${won(r.unit_price)}</td>` }] : []),
@@ -642,6 +652,14 @@
 
   // 구매내역 탭: 수정 버튼 / 업체 셀 클릭=필터(재클릭 해제) / 구매 삭제
   $("#pout").addEventListener("click", async e => {
+    const cp = e.target.closest("[data-copy]");
+    if (cp) {                                   // 재구매: 구매일·납품일 빈 초안 복사 → 목록 맨 위
+      cp.disabled = true;
+      const res = await fetch("/api/purchases?copy=" + cp.dataset.copy, { method: "POST" });
+      if (!res.ok) { cp.disabled = false; $("#status").textContent = "복사 실패: " + ((await res.json().catch(() => ({}))).error || res.status); return; }
+      await loadPurchases();
+      return;
+    }
     const ed = e.target.closest("[data-edit]");
     if (ed) { openEdit(ed.dataset.edit); return; }
     const vc = e.target.closest("[data-vf]");

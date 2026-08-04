@@ -1,4 +1,4 @@
-import { addPurchase, getPurchases, getPurchasesRange, deletePurchase, vendorExists, updatePurchase } from "../lib/db.mjs";
+import { addPurchase, copyPurchase, getPurchases, getPurchasesRange, deletePurchase, vendorExists, updatePurchase } from "../lib/db.mjs";
 import { blockIfUnauthed } from "../lib/auth.mjs";
 
 export const config = { api: { bodyParser: false } };
@@ -23,6 +23,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ purchases: await getPurchases() });
     }
     if (req.method === "POST") {
+      const copyId = new URL(req.url, "http://x").searchParams.get("copy");
+      if (copyId) {                                  // 재구매 복사: 구매일·납품일 빈 초안 생성(본문 없음)
+        const r = await copyPurchase(copyId);
+        if (!r.id) return res.status(404).json({ error: "없는 구매 기록이에요" });
+        return res.status(200).json(r);
+      }
       const b = await readJson(req);
       if (!b.code || !b.unitPrice || !b.purchasedAt) return res.status(422).json({ error: "code·unitPrice·purchasedAt 필요" });
       if (!(await vendorExists(b.vendor))) return res.status(422).json({ error: "등록되지 않은 업체예요 (업체 관리에서 확인)" });

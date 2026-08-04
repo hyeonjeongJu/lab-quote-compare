@@ -7,6 +7,9 @@
 index.html          업로드 폼 + 코드별 최저가 비교 테이블
 api/upload.mjs       파일 raw body → parseQuote → DB 저장 (같은 파일명이면 교체)
 api/comparison.mjs   비교 결과 조회
+api/purchases.mjs    구매내역 CRUD (`?copy=<id>` = 재구매 복사: 구매일·납품일만 빈 초안)
+api/settlement.mjs   업체별 정산(외상장부) 기록
+api/vendors.mjs      업체 마스터 / api/login·logout·password.mjs  로그인
 lib/parsers.mjs      규칙 기반 파서: .xls(SheetJS)/.pdf(pdf-parse) → 정규화. 규격 파싱(컬럼→코드접미사→품명) + 단위 정규화(mg/g/kg→g 등)
 lib/db.mjs           pg 풀 + saveQuote(upsert product·insert offer) + getComparison(업체별 최신견적, price/spec_amount)
 db/schema.sql        product · quote · offer (3테이블, offer→quote ON DELETE CASCADE)
@@ -30,7 +33,8 @@ db/schema.sql        product · quote · offer (3테이블, offer→quote ON DEL
 4. 앱 열어 견적서 업로드
 
 ## 주의
-- 개인/랩실용(비상업). 정산 기능은 다음 증분(order/settlement 테이블 예정)
+- 개인/랩실용(비상업)
+- 구매내역은 정산 기준 원장이라 견적과 틀어져도 모든 행 수정 가능. 구매일 빈 초안은 목록 맨 위 + CSV(기간 필터)에서는 제외
 - 새 업체 견적 포맷은 파서 규칙 추가가 필요할 수 있음(규칙 기반)
 - pg 타입 함정 처리됨: DATE→문자열(setTypeParser 1082), NUMERIC은 프론트에서 Number() 변환
 
