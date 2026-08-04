@@ -90,7 +90,8 @@
   td.vcell{cursor:pointer;}
   td.vcell:hover{text-decoration:underline;}
   /* 재구매 복사 + : 행 hover(또는 키보드 포커스)에만 노출. 상품 셀 오른쪽 끝 고정 */
-  td.pcell{position:relative;padding-right:26px;}
+  td.pcell,td.bcell{position:relative;}   /* .newbadge 기준점. pcell만 + 버튼 자리 확보 */
+  td.pcell{padding-right:26px;}
   button.cp{position:absolute;top:50%;transform:translateY(-50%);right:4px;width:18px;height:18px;padding:0;font-size:13px;line-height:1;
             display:grid;place-items:center;
             border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--sub);opacity:0;}
@@ -510,7 +511,7 @@
     if (!settlements.length) { el.innerHTML = `<p class="muted">정산 기록이 없어요. 위 <b>업체별 미정산 금액</b> 뱃지를 눌러 정산을 입력하세요.</p>`; return; }
     const total = settlements.reduce((s, r) => s + Number(r.amount), 0);
     const body = settlements.map(r => `<tr>
-      <td>${r.vendor}</td>
+      <td class="bcell">${r.is_new ? `<span class="newbadge" title="오늘 등록">NEW</span>` : ""}${r.vendor}</td>
       <td class="num">${won(r.amount)}</td>
       <td class="dt">${(r.settled_at || "").slice(0,10)}</td>
       <td class="ell" data-full="${attr(r.memo)}">${r.memo || ""}</td>
